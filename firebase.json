@@ -1,18 +1,4 @@
 {
-  "hosting": {
-    "source": ".",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "frameworksBackend": {
-      "region": "asia-northeast1",
-      "runtime": "nodejs20",
-      "timeoutSeconds": 120,
-      "memoryMiB": 1024
-    }
-  },
   "storage": {
     "rules": "storage.rules"
   }
