@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
+import { useNotification } from '@/contexts/NotificationContext'
 import { useRouter } from 'next/navigation'
 import { Report, getReportsList } from '@/lib/data'
 import { getReports, saveReports } from '@/lib/firestore'
@@ -11,6 +12,7 @@ import SaveButtons from '@/components/SaveButtons'
 export default function ReportsPage() {
   const { isAuthenticated } = useAuth()
   const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
+  const { showToast, confirmAction } = useNotification()
   const router = useRouter()
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,16 +44,23 @@ export default function ReportsPage() {
     try {
       await saveReports(reports)
       setHasUnsavedChanges(false)
-      alert('保存しました')
+      showToast('success', '経過報告を保存しました')
     } catch (error) {
       console.error('Error saving:', error)
-      alert('保存に失敗しました')
+      showToast('error', '保存に失敗しました')
     }
   }
 
   const handleSaveAndExit = async () => {
-    await handleSave()
-    disableEditMode()
+    try {
+      await saveReports(reports)
+      setHasUnsavedChanges(false)
+      showToast('success', '経過報告を保存して編集モードを終了しました')
+      disableEditMode()
+    } catch (error) {
+      console.error('Error saving:', error)
+      showToast('error', '保存に失敗しました')
+    }
   }
 
   const handleUpdateReport = (id: string, field: keyof Report, value: string) => {
@@ -75,13 +84,19 @@ export default function ReportsPage() {
 
   const handleDeleteReport = (id: string) => {
     const target = reports.find((r) => r.id === id)
-    const label = target?.nickname ? `「${target.nickname}」` : id
-    if (!confirm(`${label} の経過報告を削除しますか？（保存するまでFirestoreには反映されません）`)) {
-      return
-    }
+    const label = target?.nickname ? `「${target.nickname}」` : 'この'
 
-    setReports((prev) => prev.filter((r) => r.id !== id))
-    setHasUnsavedChanges(true)
+    confirmAction({
+      title: '報告の削除',
+      message: `${label} の経過報告を削除しますか？（保存するまでサーバーには反映されません）`,
+      confirmLabel: '削除する',
+      variant: 'danger',
+      onConfirm: () => {
+        setReports((prev) => prev.filter((r) => r.id !== id))
+        setHasUnsavedChanges(true)
+        showToast('info', '報告を削除リストに追加しました（保存して確定してください）')
+      }
+    })
   }
 
   if (!isAuthenticated) {

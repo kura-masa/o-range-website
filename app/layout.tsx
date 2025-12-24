@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { EditProvider } from '@/contexts/EditContext'
+import { NotificationProvider } from '@/contexts/NotificationContext'
 import HamburgerMenu from '@/components/HamburgerMenu'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -21,12 +22,14 @@ export default function RootLayout({
     <html lang="ja">
       <body className={inter.className}>
         <AuthProvider>
-          <EditProvider>
-            <HamburgerMenu />
-            <main className="min-h-screen bg-gray-50">
-              {children}
-            </main>
-          </EditProvider>
+          <NotificationProvider>
+            <EditProvider>
+              <HamburgerMenu />
+              <main className="min-h-screen bg-gray-50">
+                {children}
+              </main>
+            </EditProvider>
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

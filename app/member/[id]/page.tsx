@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
+import { useNotification } from '@/contexts/NotificationContext'
 import { Member, getMemberById } from '@/lib/data'
 import { getMember, saveMember } from '@/lib/firestore'
 import SaveButtons from '@/components/SaveButtons'
@@ -19,6 +20,7 @@ export default function MemberDetailPage() {
   const router = useRouter()
   const { isAuthenticated } = useAuth()
   const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
+  const { showToast } = useNotification()
   const [member, setMember] = useState<Member | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -50,10 +52,10 @@ export default function MemberDetailPage() {
       try {
         await saveMember(member)
         setHasUnsavedChanges(false)
-        alert('保存しました')
+        showToast('success', 'プロフィールを保存しました')
       } catch (error) {
         console.error('Error saving:', error)
-        alert('保存に失敗しました')
+        showToast('error', '保存に失敗しました')
       }
     }
   }
@@ -143,7 +145,7 @@ export default function MemberDetailPage() {
                 member.name
               )}
             </h1>
-            
+
             {/* 行間を少し詰め、文字サイズをスマホ用に調整 */}
             <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
               <div className="flex flex-row items-baseline gap-1">

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
+import { useNotification } from '@/contexts/NotificationContext'
 import { useRouter } from 'next/navigation'
 import LoginModal from './LoginModal'
 
@@ -10,7 +11,8 @@ export default function HamburgerMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const { isAuthenticated, logout } = useAuth()
-  const { isEditMode, enableEditMode, disableEditMode } = useEdit()
+  const { isEditMode, enableEditMode, disableEditMode, hasUnsavedChanges } = useEdit()
+  const { confirmAction } = useNotification()
   const router = useRouter()
 
   const handleMemberOnlyClick = () => {
@@ -35,6 +37,19 @@ export default function HamburgerMenu() {
 
   const handleEditToggle = () => {
     if (isEditMode) {
+      if (hasUnsavedChanges) {
+        confirmAction({
+          title: '編集の終了',
+          message: '未保存の変更があります。保存せずに終了しますか？',
+          confirmLabel: '終了する',
+          variant: 'danger',
+          onConfirm: () => {
+            disableEditMode()
+            setIsOpen(false)
+          }
+        })
+        return
+      }
       disableEditMode()
     } else {
       enableEditMode()
@@ -71,9 +86,8 @@ export default function HamburgerMenu() {
 
       {/* メニューパネル */}
       <div
-        className={`fixed top-0 right-0 h-full w-64 bg-white shadow-xl z-40 transform transition-transform duration-300 ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`fixed top-0 right-0 h-full w-64 bg-white shadow-xl z-40 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
       >
         <div className="p-6 pt-20">
           <nav className="space-y-4">
@@ -111,11 +125,10 @@ export default function HamburgerMenu() {
               <>
                 <button
                   onClick={handleEditToggle}
-                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${
-                    isEditMode
+                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${isEditMode
                       ? 'bg-orange-100 text-orange-primary font-semibold'
                       : 'hover:bg-orange-50 text-gray-700 hover:text-orange-primary'
-                  }`}
+                    }`}
                 >
                   {isEditMode ? '編集中...' : '編集する'}
                 </button>

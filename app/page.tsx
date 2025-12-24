@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
+import { useNotification } from '@/contexts/NotificationContext'
 import MemberCard from '@/components/MemberCard'
 import SaveButtons from '@/components/SaveButtons'
 import { Member } from '@/lib/data'
@@ -11,6 +12,7 @@ import { getMembers, saveMembers, saveMember } from '@/lib/firestore'
 export default function Home() {
   const { isAuthenticated } = useAuth()
   const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
+  const { showToast, confirmAction } = useNotification()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -38,16 +40,23 @@ export default function Home() {
       // Firestoreに保存
       await saveMembers(members)
       setHasUnsavedChanges(false)
-      alert('保存しました')
+      showToast('success', 'メンバー情報を保存しました')
     } catch (error) {
       console.error('Error saving:', error)
-      alert('保存に失敗しました。ローカルストレージに保存されています。')
+      showToast('error', '保存に失敗しました')
     }
   }
 
   const handleSaveAndExit = async () => {
-    await handleSave()
-    disableEditMode()
+    try {
+      await saveMembers(members)
+      setHasUnsavedChanges(false)
+      showToast('success', 'メンバー情報を保存して編集モードを終了しました')
+      disableEditMode()
+    } catch (error) {
+      console.error('Error saving:', error)
+      showToast('error', '保存に失敗しました')
+    }
   }
 
   const handleUpdateMember = (id: string, field: keyof Member, value: string) => {
@@ -76,7 +85,7 @@ export default function Home() {
       await saveMember(newMember)
       setMembers((prev) => [...prev, newMember])
       // 追加直後は未保存フラグは立てない（以降の編集で立つ）
-      
+
       // 新しく追加されたメンバーまでスクロール
       setTimeout(() => {
         const newMemberElement = document.getElementById(`member-${id}`)
@@ -86,19 +95,25 @@ export default function Home() {
       }, 100)
     } catch (e) {
       console.error('Error auto-saving new member:', e)
-      alert('新規メンバーの作成に失敗しました')
+      showToast('error', 'メンバーの追加に失敗しました')
     }
   }
 
   const handleDeleteMember = (id: string) => {
     const target = members.find((m) => m.id === id)
-    const label = target?.name ? `「${target.name}」` : id
-    if (!confirm(`${label} を削除しますか？（保存するまでFirestoreには反映されません）`)) {
-      return
-    }
+    const label = target?.name ? `「${target.name}」` : 'このメンバー'
 
-    setMembers((prev) => prev.filter((m) => m.id !== id))
-    setHasUnsavedChanges(true)
+    confirmAction({
+      title: 'メンバーの削除',
+      message: `${label} を削除しますか？（保存ボタンを押すまで確定されません）`,
+      confirmLabel: '削除する',
+      variant: 'danger',
+      onConfirm: () => {
+        setMembers((prev) => prev.filter((m) => m.id !== id))
+        setHasUnsavedChanges(true)
+        showToast('info', 'メンバーを削除リストに追加しました（保存して確定してください）')
+      }
+    })
   }
 
   if (loading) {
