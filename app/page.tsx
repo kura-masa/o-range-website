@@ -145,21 +145,12 @@ export default function Home() {
       </div>
 
       {isAuthenticated && isEditMode && (
-        <>
-          <div className="mt-6 flex justify-center">
-            <button
-              type="button"
-              onClick={handleAddMember}
-              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-            >
-              ＋ メンバー追加
-            </button>
-          </div>
-          <SaveButtons
-            onSave={handleSave}
-            onSaveAndExit={handleSaveAndExit}
-          />
-        </>
+        <SaveButtons
+          onSave={handleSave}
+          onSaveAndExit={handleSaveAndExit}
+          onAdd={handleAddMember}
+          addButtonLabel="＋ メンバー追加"
+        />
       )}
     </div>
   )

@@ -116,18 +116,6 @@ export default function ReportsPage() {
       <header className="mb-8 text-center">
         <h1 className="text-3xl font-bold text-orange-primary mb-2">経過報告</h1>
         <p className="text-gray-600">メンバー限定 - 現在進行中の取り組み</p>
-
-        {isAuthenticated && isEditMode && (
-          <div className="mt-4 flex justify-center">
-            <button
-              type="button"
-              onClick={handleAddReport}
-              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-            >
-              ＋ 報告追加
-            </button>
-          </div>
-        )}
       </header>
 
       <div className="space-y-6">
@@ -208,6 +196,8 @@ export default function ReportsPage() {
         <SaveButtons
           onSave={handleSave}
           onSaveAndExit={handleSaveAndExit}
+          onAdd={handleAddReport}
+          addButtonLabel="＋ 報告追加"
         />
       )}
     </div>
