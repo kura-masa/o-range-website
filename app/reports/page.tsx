@@ -197,7 +197,7 @@ export default function ReportsPage() {
           onSave={handleSave}
           onSaveAndExit={handleSaveAndExit}
           onAdd={handleAddReport}
-          addButtonLabel="＋ 報告追加"
+          addButtonLabel="＋ 追加"
         />
       )}
     </div>

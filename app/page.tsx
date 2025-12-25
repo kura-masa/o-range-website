@@ -149,7 +149,7 @@ export default function Home() {
           onSave={handleSave}
           onSaveAndExit={handleSaveAndExit}
           onAdd={handleAddMember}
-          addButtonLabel="＋ メンバー追加"
+          addButtonLabel="＋ 追加"
         />
       )}
     </div>
