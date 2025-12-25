@@ -26,12 +26,6 @@ export default function SaveButtons({ onSave, onSaveAndExit, onAdd, addButtonLab
         </button>
       )}
       <button
-        onClick={onSave}
-        className="px-4 py-2 bg-orange-primary text-white rounded-lg hover:bg-orange-dark transition-colors font-semibold shadow-lg"
-      >
-        保存
-      </button>
-      <button
         onClick={onSaveAndExit}
         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold shadow-lg"
       >
