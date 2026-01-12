@@ -1,12 +1,13 @@
-# Firebase Hosting デプロイガイド
+# Firebase App Hosting デプロイガイド
 
-このプロジェクトは **Firebase Hosting（静的サイト）** 用に設定されています。
+このプロジェクトは **Firebase App Hosting（動的サイト・SSR対応）** 用に設定されています。
 
 ## 📋 前提条件
 
 - Node.js がインストールされていること
 - Firebase CLI がインストールされていること
 - Firebase プロジェクトが作成されていること
+- Firebase App Hosting が有効化されていること
 
 ## 🚀 デプロイ手順
 
@@ -34,84 +35,90 @@ firebase login
 }
 ```
 
-### 4. ビルド & デプロイ
+### 4. デプロイ
 
 ```bash
-# ビルドとデプロイを一度に実行
-npm run deploy
+# Firebase App Hostingへデプロイ
+firebase deploy
 ```
 
-または、個別に実行：
+または、GitHubと連携している場合は、mainブランチにプッシュすることで自動デプロイされます。
 
-```bash
-# ビルドのみ
-npm run build
-
-# デプロイのみ
-firebase deploy --only hosting
-```
-
-## 📁 ビルド出力
-
-- ビルドされたファイルは `out/` フォルダに生成されます
-- Firebase Hosting は `out/` フォルダの内容を配信します
-
-## ⚙️ 静的エクスポートの仕組み
+## ⚙️ Firebase App Hosting の仕組み
 
 ### Next.js 設定（next.config.js）
 
-- `output: 'export'` - 静的HTMLとしてエクスポート
-- `images.unoptimized: true` - 画像最適化を無効化（静的サイトでは不要）
-- `trailingSlash: true` - URL末尾のスラッシュを追加
+- **SSR（Server-Side Rendering）対応** - 動的にページを生成
+- **API Routes 使用可能** - サーバーサイド処理が実行できる
+- **環境変数** - `apphosting.yaml` で管理
 
-### Firebase 設定（firebase.json）
+### 環境変数設定（apphosting.yaml）
 
-- `public: "out"` - ビルド出力フォルダを指定
-- `cleanUrls: true` - URLから `.html` を削除
-- `trailingSlash: false` - URL末尾のスラッシュを削除
+本番環境の環境変数は `apphosting.yaml` で管理されています：
+
+```yaml
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: your-api-key
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_GEMINI_API_KEY
+    value: your-gemini-api-key
+    availability:
+      - BUILD
+      - RUNTIME
+```
+
+- `BUILD` - ビルド時に利用可能
+- `RUNTIME` - 実行時に利用可能
 
 ## 🔥 Firebase との連携
 
-### 静的サイトでも以下の機能が動作します：
+### 動的サイトで利用可能な機能：
+
+✅ **Server-Side Rendering (SSR)**
+- ページごとに動的にHTMLを生成
+- SEO対策に有利
+
+✅ **API Routes**
+- `/pages/api/*` でサーバーサイド処理を実行
+- データベースアクセスやAPIキーの安全な管理が可能
 
 ✅ **画像アップロード（Firebase Storage）**
 - ブラウザから直接 Firebase Storage にアップロード
-- サーバーサイド処理は不要
+- サーバーサイドでも処理可能
 
 ✅ **データ保存（Firestore）**
 - ブラウザから直接 Firestore にデータを読み書き
+- サーバーサイドでも処理可能
 - リアルタイム更新が可能
 
-✅ **即時反映**
-- ユーザーが編集した内容は即座に Firebase に保存される
-- 他のユーザーがページを開くと最新データが表示される
-
-### Firebase 設定（.env.local）
-
-環境変数ファイル `.env.local` に Firebase の設定を記述：
-
-```env
-NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
-```
+✅ **AI機能（Gemini API）**
+- 音声報告の自動要約
+- ティーザー生成
+- RAG検索機能
 
 ## 🧪 ローカルでのテスト
 
 デプロイ前にローカルで確認：
 
 ```bash
-# ビルド
-npm run build
-
-# Firebase Hosting エミュレータで確認
-firebase serve
+# 開発サーバーを起動
+npm run dev
 ```
 
-ブラウザで http://localhost:5000 を開いて確認できます。
+ブラウザで http://localhost:3000 を開いて確認できます。
+
+本番環境と同じ動作を確認するには：
+
+```bash
+# 本番ビルド
+npm run build
+
+# 本番サーバーを起動
+npm run start
+```
 
 ## 📊 デプロイ後の確認
 
@@ -138,7 +145,7 @@ npm install
 
 2. Next.js のキャッシュをクリア：
 ```bash
-rm -rf .next out
+rm -rf .next
 npm run build
 ```
 
@@ -159,16 +166,27 @@ firebase login --reauth
 firebase projects:list
 ```
 
-## 📝 注意事項
+### 環境変数が反映されない場合
 
-- **静的サイト** なので、Server Components や API Routes は使用できません
-- すべてのページは **ビルド時に生成** されます
-- 動的ルート（`/member/[id]`）のパスは `generateStaticParams` で事前に定義する必要があります
-- Firebase Storage と Firestore はクライアントサイドで動的に動作します
+1. `apphosting.yaml` の設定を確認
+2. 再デプロイを実行
+3. Firebase Console で環境変数の設定を確認
+
+## 📝 静的サイトとの違い
+
+| 項目 | 静的サイト (Hosting) | 動的サイト (App Hosting) |
+|------|---------------------|------------------------|
+| **レンダリング** | ビルド時に全ページ生成 | リクエスト時に動的生成 |
+| **API Routes** | ❌ 使用不可 | ✅ 使用可能 |
+| **SSR** | ❌ 使用不可 | ✅ 使用可能 |
+| **環境変数** | ビルド時のみ | ビルド時＋実行時 |
+| **サーバー** | 不要 | Node.jsサーバーが起動 |
+| **コスト** | 低い | やや高い |
 
 ## 🔗 参考リンク
 
-- [Next.js Static Exports](https://nextjs.org/docs/app/building-your-application/deploying/static-exports)
-- [Firebase Hosting](https://firebase.google.com/docs/hosting)
+- [Firebase App Hosting](https://firebase.google.com/docs/app-hosting)
+- [Next.js Deployment](https://nextjs.org/docs/deployment)
 - [Firebase Storage Web](https://firebase.google.com/docs/storage/web/start)
 - [Firebase Firestore Web](https://firebase.google.com/docs/firestore/quickstart)
+- [Google Gemini API](https://ai.google.dev/docs)

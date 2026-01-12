@@ -32,3 +32,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_GEMINI_API_KEY
+    value: AIzaSyAXi85CVpPVXHYzYcD-A8sNBogFrWb0N54
+    availability:
+      - BUILD
+      - RUNTIME
