@@ -5,11 +5,9 @@ import { useEdit } from '@/contexts/EditContext'
 interface SaveButtonsProps {
   onSave: () => void
   onSaveAndExit: () => void
-  onAdd?: () => void
-  addButtonLabel?: string
 }
 
-export default function SaveButtons({ onSave, onSaveAndExit, onAdd, addButtonLabel }: SaveButtonsProps) {
+export default function SaveButtons({ onSave, onSaveAndExit }: SaveButtonsProps) {
   const { isEditMode, hasUnsavedChanges } = useEdit()
 
   // 編集モードでない場合は表示しない
@@ -17,14 +15,6 @@ export default function SaveButtons({ onSave, onSaveAndExit, onAdd, addButtonLab
 
   return (
     <div className="fixed bottom-6 right-6 z-40 flex flex-col gap-2">
-      {onAdd && addButtonLabel && (
-        <button
-          onClick={onAdd}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow-lg"
-        >
-          {addButtonLabel}
-        </button>
-      )}
       <button
         onClick={onSaveAndExit}
         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold shadow-lg"

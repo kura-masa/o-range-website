@@ -13,6 +13,15 @@ const config: Config = {
         'orange-light': '#FFB380',
         'orange-dark': '#E06F2B',
       },
+      keyframes: {
+        'indeterminate': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(400%)' },
+        },
+      },
+      animation: {
+        'indeterminate': 'indeterminate 1.5s linear infinite',
+      },
     },
   },
   plugins: [],

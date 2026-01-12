@@ -7,7 +7,12 @@ import { useNotification } from '@/contexts/NotificationContext'
 import { useRouter } from 'next/navigation'
 import LoginModal from './LoginModal'
 
-export default function HamburgerMenu() {
+interface HamburgerMenuProps {
+  onAddMember?: () => void
+  hideEditButton?: boolean // 編集ボタンを非表示にするフラグ
+}
+
+export default function HamburgerMenu({ onAddMember, hideEditButton = false }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const { isAuthenticated, logout } = useAuth()
@@ -51,10 +56,18 @@ export default function HamburgerMenu() {
         return
       }
       disableEditMode()
+      setIsOpen(false)
     } else {
       enableEditMode()
+      // 編集モード開始時はメニューを開いたままにする
     }
-    setIsOpen(false)
+  }
+
+  const handleAddMember = () => {
+    if (onAddMember) {
+      onAddMember()
+      setIsOpen(false)
+    }
   }
 
   return (
@@ -86,17 +99,18 @@ export default function HamburgerMenu() {
 
       {/* メニューパネル */}
       <div
-        className={`fixed top-0 right-0 h-full w-64 bg-white shadow-xl z-40 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'
+        className={`fixed top-0 right-0 h-full bg-white shadow-xl z-40 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
+        style={{ width: 'max-content', minWidth: '100px', maxWidth: '110px' }}
       >
-        <div className="p-6 pt-20">
-          <nav className="space-y-4">
+        <div className="px-1 py-4 pt-20">
+          <nav className="space-y-3">
             <button
               onClick={() => {
                 router.push('/')
                 setIsOpen(false)
               }}
-              className="w-full text-left px-4 py-3 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors"
+              className="w-full text-left px-2 py-2 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors text-sm"
             >
               メンバー一覧
             </button>
@@ -104,38 +118,58 @@ export default function HamburgerMenu() {
             {!isAuthenticated ? (
               <button
                 onClick={handleLoginClick}
-                className="w-full text-left px-4 py-3 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors"
+                className="w-full text-left px-2 py-2 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors text-sm"
               >
                 管理者ログイン
               </button>
             ) : (
-              <div className="px-4 py-3 text-green-600 font-semibold">
-                ログインしています
+              <div className="px-2 py-2 text-green-600 font-semibold text-sm">
+                ログイン中
               </div>
             )}
 
             <button
               onClick={handleMemberOnlyClick}
-              className="w-full text-left px-4 py-3 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors"
+              className="w-full text-left px-2 py-2 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors text-sm"
             >
-              メンバー限定情報
+              メンバー限定
             </button>
 
             {isAuthenticated && (
               <>
-                <button
-                  onClick={handleEditToggle}
-                  className={`w-full text-left px-4 py-3 rounded-lg transition-colors ${isEditMode
+                {!hideEditButton && (
+                  <button
+                    onClick={handleEditToggle}
+                    className={`w-full text-left px-2 py-2 rounded-lg transition-colors text-sm ${isEditMode
                       ? 'bg-orange-100 text-orange-primary font-semibold'
                       : 'hover:bg-orange-50 text-gray-700 hover:text-orange-primary'
-                    }`}
-                >
-                  {isEditMode ? '編集中...' : '編集する'}
-                </button>
+                      }`}
+                  >
+                    {isEditMode ? '編集中...' : '編集する'}
+                  </button>
+                )}
+
+                {!hideEditButton && isEditMode && onAddMember && (
+                  <button
+                    onClick={handleAddMember}
+                    className="w-full text-left px-2 py-2 rounded-lg hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition-colors font-semibold text-sm"
+                  >
+                    メンバー追加
+                  </button>
+                )}
+
+                {hideEditButton && onAddMember && (
+                  <button
+                    onClick={handleAddMember}
+                    className="w-full text-left px-2 py-2 rounded-lg hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition-colors font-semibold text-sm"
+                  >
+                    メンバー追加
+                  </button>
+                )}
 
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors"
+                  className="w-full text-left px-2 py-2 rounded-lg hover:bg-red-50 text-red-600 hover:text-red-700 transition-colors text-sm"
                 >
                   ログアウト
                 </button>

@@ -6,6 +6,7 @@ import { useEdit } from '@/contexts/EditContext'
 import { useNotification } from '@/contexts/NotificationContext'
 import MemberCard from '@/components/MemberCard'
 import SaveButtons from '@/components/SaveButtons'
+import HamburgerMenu from '@/components/HamburgerMenu'
 import { Member } from '@/lib/data'
 import { getMembers, saveMembers, saveMember } from '@/lib/firestore'
 
@@ -125,33 +126,35 @@ export default function Home() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
-      <header className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-orange-primary mb-2">O-range メンバー</h1>
+    <>
+      <HamburgerMenu onAddMember={handleAddMember} />
+      
+      <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-orange-primary mb-2">O-range メンバー</h1>
 
-      </header>
+        </header>
 
-      <div className="space-y-4">
-        {members.map((member) => (
-          <div key={member.id} id={`member-${member.id}`}>
-            <MemberCard
-              member={member}
-              isEditing={isEditMode}
-              onUpdate={handleUpdateMember}
-              onDelete={handleDeleteMember}
-            />
-          </div>
-        ))}
+        <div className="space-y-4">
+          {members.map((member) => (
+            <div key={member.id} id={`member-${member.id}`}>
+              <MemberCard
+                member={member}
+                isEditing={isEditMode}
+                onUpdate={handleUpdateMember}
+                onDelete={handleDeleteMember}
+              />
+            </div>
+          ))}
+        </div>
+
+        {isAuthenticated && isEditMode && (
+          <SaveButtons
+            onSave={handleSave}
+            onSaveAndExit={handleSaveAndExit}
+          />
+        )}
       </div>
-
-      {isAuthenticated && isEditMode && (
-        <SaveButtons
-          onSave={handleSave}
-          onSaveAndExit={handleSaveAndExit}
-          onAdd={handleAddMember}
-          addButtonLabel="＋ 追加"
-        />
-      )}
-    </div>
+    </>
   )
 }

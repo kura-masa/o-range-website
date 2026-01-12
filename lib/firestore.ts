@@ -10,7 +10,8 @@ import {
   deleteDoc,
 } from 'firebase/firestore'
 import app, { isFirebaseConfigured } from './firebase'
-import { Member, Report } from './data'
+import { Member, Report, ReportHistory, ReportEmbedding } from './data'
+import { generateEmbedding } from './gemini'
 
 // Firestoreインスタンスの取得
 let db: Firestore | null = null
@@ -301,5 +302,239 @@ export async function saveReports(reports: Report[]): Promise<void> {
   } catch (error) {
     console.error('❌ Error saving reports:', error)
     throw error
+  }
+}
+
+// ========================================
+// 履歴保存機能
+// ========================================
+
+/**
+ * 週IDを生成（ISO 8601週番号形式: YYYY-Wxx）
+ */
+export function generateWeekId(date: Date = new Date()): string {
+  // ISO 8601週番号を計算
+  const tempDate = new Date(date.valueOf())
+  const dayNum = (tempDate.getDay() + 6) % 7 // 月曜日=0, 日曜日=6
+  tempDate.setDate(tempDate.getDate() - dayNum + 3) // 木曜日に移動
+  const firstThursday = tempDate.valueOf()
+  tempDate.setMonth(0, 1)
+  if (tempDate.getDay() !== 4) {
+    tempDate.setMonth(0, 1 + ((4 - tempDate.getDay()) + 7) % 7)
+  }
+  const weekNumber = 1 + Math.ceil((firstThursday - tempDate.valueOf()) / 604800000)
+  const year = new Date(firstThursday).getFullYear()
+  return `${year}-W${String(weekNumber).padStart(2, '0')}`
+}
+
+/**
+ * 現在の報告を履歴として保存（埋め込みベクトル付き）
+ */
+export async function saveReportsToHistory(weekId?: string, generateEmbeddings: boolean = false): Promise<string> {
+  if (!useFirestore()) {
+    throw new Error('Firebase not configured')
+  }
+
+  try {
+    const db = getFirestoreInstance()
+    if (!db) throw new Error('Firestore not available')
+
+    // 現在の報告を取得
+    const currentReports = await getReports()
+    
+    if (currentReports.length === 0) {
+      throw new Error('保存する報告がありません')
+    }
+
+    // 週IDを生成または使用
+    const finalWeekId = weekId || generateWeekId()
+    const savedAt = new Date().toISOString()
+
+    let embeddings: ReportEmbedding[] | undefined = undefined
+
+    // 埋め込み生成が有効な場合
+    if (generateEmbeddings) {
+      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
+      if (apiKey) {
+        try {
+          embeddings = await generateReportEmbeddings(currentReports, apiKey)
+          console.log(`✅ Generated ${embeddings.length} embeddings`)
+        } catch (error) {
+          console.warn('⚠️ Failed to generate embeddings, saving without them:', error)
+        }
+      }
+    }
+
+    const historyData: ReportHistory = {
+      weekId: finalWeekId,
+      savedAt,
+      reports: currentReports,
+      embeddings,
+    }
+
+    // reports_history コレクションに保存
+    const docRef = doc(db, 'reports_history', finalWeekId)
+    await setDoc(docRef, historyData)
+    
+    console.log(`✅ Saved reports history for week ${finalWeekId}`)
+    return finalWeekId
+  } catch (error) {
+    console.error('❌ Error saving reports history:', error)
+    throw error
+  }
+}
+
+/**
+ * 報告から埋め込みベクトルを生成
+ */
+async function generateReportEmbeddings(
+  reports: Report[],
+  apiKey: string
+): Promise<ReportEmbedding[]> {
+  const embeddings: ReportEmbedding[] = []
+
+  for (const report of reports) {
+    // 報告内容を結合してテキスト化
+    const text = [
+      `メンバー: ${report.nickname}`,
+      `今試していること: ${report.currentTrial}`,
+      `経過報告: ${report.progress}`,
+      `結果報告・考察: ${report.result}`,
+    ].join('\n')
+
+    // 埋め込みを生成
+    const embedding = await generateEmbedding(text, apiKey)
+
+    embeddings.push({
+      reportId: report.id,
+      nickname: report.nickname,
+      text,
+      embedding,
+    })
+  }
+
+  return embeddings
+}
+
+/**
+ * 履歴一覧を取得（新しい順）
+ */
+export async function getReportsHistoryList(): Promise<ReportHistory[]> {
+  if (!useFirestore()) {
+    console.warn('⚠️ Firebase not configured')
+    return []
+  }
+
+  try {
+    const db = getFirestoreInstance()
+    if (!db) throw new Error('Firestore not available')
+
+    const historyRef = collection(db, 'reports_history')
+    const snapshot = await getDocs(historyRef)
+    
+    const historyList = snapshot.docs.map(d => {
+      const data = d.data() as any
+      console.log(`📦 履歴データ ${d.id}:`, {
+        weekId: data.weekId,
+        savedAt: data.savedAt,
+        reportsCount: data.reports?.length || 0,
+        embeddingsCount: data.embeddings?.length || 0,
+        hasEmbeddings: !!data.embeddings
+      })
+      return {
+        weekId: data.weekId || d.id,
+        savedAt: data.savedAt || '',
+        reports: Array.isArray(data.reports) ? data.reports : [],
+        embeddings: Array.isArray(data.embeddings) ? data.embeddings : undefined,
+      } as ReportHistory
+    })
+
+    // 日付降順でソート
+    historyList.sort((a, b) => b.savedAt.localeCompare(a.savedAt))
+    
+    console.log(`✅ Fetched ${historyList.length} history records`)
+    return historyList
+  } catch (error) {
+    console.error('❌ Error fetching reports history:', error)
+    throw error
+  }
+}
+
+/**
+ * 特定週の履歴を取得
+ */
+export async function getReportsHistory(weekId: string): Promise<ReportHistory | null> {
+  if (!useFirestore()) {
+    console.warn('⚠️ Firebase not configured')
+    return null
+  }
+
+  try {
+    const db = getFirestoreInstance()
+    if (!db) throw new Error('Firestore not available')
+
+    const docRef = doc(db, 'reports_history', weekId)
+    const docSnap = await getDoc(docRef)
+
+    if (docSnap.exists()) {
+      const data = docSnap.data() as any
+      const history: ReportHistory = {
+        weekId: data.weekId || docSnap.id,
+        savedAt: data.savedAt || '',
+        reports: Array.isArray(data.reports) ? data.reports : [],
+        embeddings: Array.isArray(data.embeddings) ? data.embeddings : undefined,
+      }
+      console.log(`✅ Fetched history for week ${weekId}`)
+      return history
+    }
+    
+    console.warn(`⚠️ History for week ${weekId} not found`)
+    return null
+  } catch (error) {
+    console.error('❌ Error fetching history:', error)
+    throw error
+  }
+}
+
+/**
+ * 全履歴から埋め込みベクトルを収集
+ */
+export async function getAllEmbeddings(): Promise<ReportEmbedding[]> {
+  if (!useFirestore()) {
+    console.warn('⚠️ Firebase not configured')
+    return []
+  }
+
+  try {
+    const historyList = await getReportsHistoryList()
+    const allEmbeddings: ReportEmbedding[] = []
+
+    console.log(`📊 履歴データ詳細:`, historyList.map(h => ({
+      weekId: h.weekId,
+      embeddingsCount: h.embeddings?.length || 0,
+      hasEmbeddings: !!h.embeddings
+    })))
+
+    for (const history of historyList) {
+      console.log(`🔍 処理中の履歴: ${history.weekId}, embeddings:`, history.embeddings?.length || 0)
+      
+      if (history.embeddings && Array.isArray(history.embeddings)) {
+        // 週IDを含めた形で追加
+        history.embeddings.forEach((emb) => {
+          allEmbeddings.push({
+            ...emb,
+            text: `[${history.weekId}] ${emb.text}`, // 週IDを追加
+          })
+        })
+      } else {
+        console.log(`⚠️ ${history.weekId} には埋め込みがありません`)
+      }
+    }
+
+    console.log(`✅ Collected ${allEmbeddings.length} embeddings from history`)
+    return allEmbeddings
+  } catch (error) {
+    console.error('❌ Error collecting embeddings:', error)
+    return []
   }
 }

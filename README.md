@@ -7,6 +7,7 @@
 - **メンバー一覧**: チームメンバーの紹介
 - **プロフィール詳細**: 各メンバーの詳細情報
 - **経過報告**: メンバー限定の進捗共有（要ログイン）
+- **音声入力報告**: 🎤 会議で話した内容をAIが自動要約（NEW!）
 - **管理機能**: インライン編集でコンテンツを更新
 
 ## 技術スタック
@@ -70,33 +71,21 @@ npm run dev
 
 Firebase設定がない場合、自動的にローカルストレージにフォールバックします。
 
+## 音声入力報告機能 🎤
+
+週次会議で、メンバーが口頭で報告した内容を音声認識→AI要約→自動反映できます。
+
+### セットアップ
+
+1. [Google AI Studio](https://aistudio.google.com/app/apikey) でGemini APIキーを取得
+2. `.env.local` にAPIキーを設定:
+   ```bash
+   NEXT_PUBLIC_GEMINI_API_KEY=your-api-key-here
+   ```
+3. 開発サーバーを再起動
+
+詳細は **[VOICE_REPORT_SETUP.md](./VOICE_REPORT_SETUP.md)** を参照してください。
+
 ## デプロイ
 
-このプロジェクトは **Firebase Hosting（静的サイト）** として構成されています。
-
-### クイックデプロイ
-
-```bash
-# ビルド & デプロイを一度に実行
-npm run deploy
-```
-
-### 詳細な手順
-
-詳しいデプロイ手順は **[DEPLOY.md](./DEPLOY.md)** を参照してください。
-
-```bash
-# 1. Firebase プロジェクトIDを設定（.firebaserc）
-# 2. ビルド
-npm run build
-
-# 3. デプロイ
-firebase deploy --only hosting
-```
-
-### 静的サイトの特徴
-
-✅ **高速配信** - CDN経由で超高速  
-✅ **低コスト** - サーバーレスで安価  
-✅ **Firebase 連携** - Storage/Firestore が動作  
-✅ **即時反映** - 画像アップロードやデータ編集が即座に反映
+このプロジェクトは 動的サイトだよ

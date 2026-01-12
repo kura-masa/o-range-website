@@ -18,6 +18,21 @@ export interface Report {
   currentTrial: string
   progress: string
   result: string
+  teaser?: string // AI生成の見たくなるような書き出し（10文字程度）
+}
+
+export interface ReportHistory {
+  weekId: string // 例: "2026-W02"
+  savedAt: string // ISO 8601 timestamp
+  reports: Report[]
+  embeddings?: ReportEmbedding[] // RAG用の埋め込みベクトル
+}
+
+export interface ReportEmbedding {
+  reportId: string
+  nickname: string
+  text: string // 結合されたテキスト
+  embedding: number[] // 埋め込みベクトル
 }
 
 // 初期データ
