@@ -15,6 +15,7 @@ interface HamburgerMenuProps {
 export default function HamburgerMenu({ onAddMember, hideEditButton = false }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
+  const [shouldRedirectAfterLogin, setShouldRedirectAfterLogin] = useState(false)
   const { isAuthenticated, logout } = useAuth()
   const { isEditMode, enableEditMode, disableEditMode, hasUnsavedChanges } = useEdit()
   const { confirmAction } = useNotification()
@@ -25,11 +26,13 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
       router.push('/reports')
       setIsOpen(false)
     } else {
+      setShouldRedirectAfterLogin(true)
       setShowLoginModal(true)
     }
   }
 
   const handleLoginClick = () => {
+    setShouldRedirectAfterLogin(false)
     setShowLoginModal(true)
   }
 
@@ -182,11 +185,16 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
       {/* ログインモーダル */}
       {showLoginModal && (
         <LoginModal
-          onClose={() => setShowLoginModal(false)}
+          onClose={() => {
+            setShowLoginModal(false)
+            setShouldRedirectAfterLogin(false)
+          }}
           onSuccess={() => {
             setShowLoginModal(false)
             setIsOpen(false)
+            setShouldRedirectAfterLogin(false)
           }}
+          redirectTo={shouldRedirectAfterLogin ? '/reports' : undefined}
         />
       )}
     </>

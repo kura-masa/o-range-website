@@ -2,16 +2,19 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
 interface LoginModalProps {
   onClose: () => void
   onSuccess: () => void
+  redirectTo?: string // ログイン成功後に遷移するURL（オプション）
 }
 
-export default function LoginModal({ onClose, onSuccess }: LoginModalProps) {
+export default function LoginModal({ onClose, onSuccess, redirectTo }: LoginModalProps) {
   const [id, setId] = useState('')
   const [error, setError] = useState('')
   const { login } = useAuth()
+  const router = useRouter()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,6 +27,10 @@ export default function LoginModal({ onClose, onSuccess }: LoginModalProps) {
 
     const success = login(id)
     if (success) {
+      // ログイン成功後、redirectToが指定されていれば遷移
+      if (redirectTo) {
+        router.push(redirectTo)
+      }
       onSuccess()
     } else {
       setError('IDが正しくありません')
@@ -34,7 +41,7 @@ export default function LoginModal({ onClose, onSuccess }: LoginModalProps) {
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
         <h2 className="text-2xl font-bold text-orange-primary mb-4">管理者ログイン</h2>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-2">
