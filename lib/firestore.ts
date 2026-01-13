@@ -179,6 +179,7 @@ export async function getReports(): Promise<Report[]> {
         currentTrial: typeof data.currentTrial === 'string' ? data.currentTrial : '',
         progress: typeof data.progress === 'string' ? data.progress : '',
         result: typeof data.result === 'string' ? data.result : '',
+        teaser: typeof data.teaser === 'string' ? data.teaser : undefined,
       } as Report
     })
     console.log(`✅ Fetched ${reports.length} reports from Firestore`)
@@ -205,6 +206,7 @@ export async function saveReport(report: Report): Promise<void> {
       currentTrial: report.currentTrial ?? '',
       progress: report.progress ?? '',
       result: report.result ?? '',
+      teaser: report.teaser ?? '',
     }
     Object.keys(firestoreData).forEach((k) => {
       if (firestoreData[k] === undefined) delete firestoreData[k]
