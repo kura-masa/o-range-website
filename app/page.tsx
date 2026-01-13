@@ -66,7 +66,16 @@ export default function Home() {
   }
 
   const handleAddMember = async () => {
-    const id = `member-${Date.now()}`
+    // 既存のメンバーIDから次の番号を取得
+    const existingIds = members
+      .map(m => m.id)
+      .filter(id => id.startsWith('member-'))
+      .map(id => parseInt(id.replace('member-', ''), 10))
+      .filter(num => !isNaN(num))
+
+    const nextNumber = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1
+    const id = `member-${String(nextNumber).padStart(5, '0')}`
+
     const newMember: Member = {
       id,
       name: '準備中',
@@ -128,25 +137,33 @@ export default function Home() {
   return (
     <>
       <HamburgerMenu onAddMember={handleAddMember} />
-      
-      <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
-        <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-orange-primary mb-2">O-range メンバー</h1>
 
+      <div className="max-w-6xl mx-auto px-4 py-6 pb-24">
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-orange-primary mb-2">O-rangeメンバー</h1>
         </header>
 
-        <div className="space-y-4">
-          {members.map((member) => (
-            <div key={member.id} id={`member-${member.id}`}>
-              <MemberCard
-                member={member}
-                isEditing={isEditMode}
-                onUpdate={handleUpdateMember}
-                onDelete={handleDeleteMember}
-              />
-            </div>
-          ))}
-        </div>
+        {members.length === 0 ? (
+          <div className="text-center py-16">
+            <p className="text-gray-500 text-lg mb-4">まだメンバーがいません</p>
+            {isAuthenticated && (
+              <p className="text-gray-400 text-sm">ハンバーガーメニューから「メンバー追加」してください</p>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:gap-6">
+            {members.map((member) => (
+              <div key={member.id} id={`member-${member.id}`}>
+                <MemberCard
+                  member={member}
+                  isEditing={isEditMode}
+                  onUpdate={handleUpdateMember}
+                  onDelete={handleDeleteMember}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {isAuthenticated && isEditMode && (
           <SaveButtons

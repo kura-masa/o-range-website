@@ -10,7 +10,7 @@ interface ImageUploaderProps {
   imageType: 'no1' | 'no2'
   onUploadSuccess: (url: string) => void
   label: string
-  variant?: 'default' | 'compact'
+  variant?: 'default' | 'compact' | 'overlay'
 }
 
 export default function ImageUploader({
@@ -59,6 +59,52 @@ export default function ImageUploader({
   }
 
   const size = variant === 'compact' ? 80 : 128
+
+  // オーバーレイモード：画像の上にボタンを重ねる
+  if (variant === 'overlay') {
+    return (
+      <div className="relative w-full h-full group">
+        {/* 画像プレビュー */}
+        {preview ? (
+          <Image
+            src={preview}
+            alt={label}
+            fill
+            className="object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+            <span className="text-gray-500 text-sm">画像準備中</span>
+          </div>
+        )}
+
+        {/* オーバーレイボタン */}
+        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="px-4 py-2 bg-orange-primary text-white rounded-lg hover:bg-orange-dark disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors shadow-lg opacity-90 hover:opacity-100"
+          >
+            {uploading ? 'アップロード中...' : '画像変更'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="absolute bottom-2 left-2 right-2 bg-red-100 text-red-600 text-xs p-2 rounded">
+            {error}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={variant === 'compact' ? '' : 'space-y-2'}>

@@ -10,7 +10,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore'
 import app, { isFirebaseConfigured } from './firebase'
-import { Member, Report, ReportHistory, ReportEmbedding } from './data'
+import { Member, Report, ReportHistory, ReportEmbedding, Idea } from './data'
 import { generateEmbedding } from './gemini'
 
 // Firestoreインスタンスの取得
@@ -538,5 +538,103 @@ export async function getAllEmbeddings(): Promise<ReportEmbedding[]> {
   } catch (error) {
     console.error('❌ Error collecting embeddings:', error)
     return []
+  }
+}
+
+// ========================================
+// アイデア管理機能
+// ========================================
+
+/**
+ * アイデアの取得
+ */
+export async function getIdeas(): Promise<Idea[]> {
+  if (!useFirestore()) {
+    console.warn('⚠️ Firebase not configured')
+    return []
+  }
+
+  try {
+    const db = getFirestoreInstance()
+    if (!db) throw new Error('Firestore not available')
+    
+    const ideasRef = collection(db, 'ideas')
+    const snapshot = await getDocs(ideasRef)
+    const ideas = snapshot.docs.map(doc => {
+      const data = doc.data() as any
+      return {
+        id: doc.id,
+        memberId: data.memberId || '',
+        memberName: data.memberName || '',
+        ideaName: data.ideaName || '',
+        content: data.content || '',
+        rejectionReason: data.rejectionReason || undefined,
+        createdAt: data.createdAt || new Date().toISOString(),
+        updatedAt: data.updatedAt || new Date().toISOString(),
+      } as Idea
+    })
+    console.log(`✅ Fetched ${ideas.length} ideas from Firestore`)
+    return ideas
+  } catch (error) {
+    console.error('❌ Error fetching ideas:', error)
+    throw error
+  }
+}
+
+/**
+ * アイデアの保存/更新
+ */
+export async function saveIdea(idea: Idea): Promise<void> {
+  if (!useFirestore()) {
+    throw new Error('Firebase not configured')
+  }
+
+  try {
+    const db = getFirestoreInstance()
+    if (!db) throw new Error('Firestore not available')
+    
+    const firestoreData: any = {
+      memberId: idea.memberId || '',
+      memberName: idea.memberName || '',
+      ideaName: idea.ideaName || '',
+      content: idea.content || '',
+      rejectionReason: idea.rejectionReason || undefined,
+      createdAt: idea.createdAt || new Date().toISOString(),
+      updatedAt: idea.updatedAt || new Date().toISOString(),
+    }
+    
+    // Remove undefined values
+    Object.keys(firestoreData).forEach((key) => {
+      if (firestoreData[key] === undefined) {
+        delete firestoreData[key]
+      }
+    })
+    
+    const docRef = doc(db, 'ideas', idea.id)
+    await setDoc(docRef, firestoreData, { merge: true })
+    console.log(`✅ Saved idea ${idea.id} to Firestore`)
+  } catch (error) {
+    console.error('❌ Error saving idea:', error)
+    throw error
+  }
+}
+
+/**
+ * アイデアの削除
+ */
+export async function deleteIdea(id: string): Promise<void> {
+  if (!useFirestore()) {
+    throw new Error('Firebase not configured')
+  }
+
+  try {
+    const db = getFirestoreInstance()
+    if (!db) throw new Error('Firestore not available')
+
+    await deleteDoc(doc(db, 'ideas', id))
+    console.log(`✅ Deleted idea ${id} from Firestore`)
+  } catch (error) {
+    console.error('❌ Error deleting idea:', error)
+    throw error
   }
 }

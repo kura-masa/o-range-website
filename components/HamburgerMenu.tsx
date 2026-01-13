@@ -123,7 +123,7 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
                 onClick={handleLoginClick}
                 className="w-full text-left px-2 py-2 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors text-sm"
               >
-                管理者ログイン
+                ログイン
               </button>
             ) : (
               <div className="px-2 py-2 text-green-600 font-semibold text-sm">
@@ -136,6 +136,16 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
               className="w-full text-left px-2 py-2 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors text-sm"
             >
               メンバー限定
+            </button>
+
+            <button
+              onClick={() => {
+                router.push('/ideas')
+                setIsOpen(false)
+              }}
+              className="w-full text-left px-2 py-2 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors text-sm"
+            >
+              アイデア宝庫
             </button>
 
             {isAuthenticated && (

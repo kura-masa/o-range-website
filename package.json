@@ -6,11 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "seed:members34": "ts-node -P tsconfig.scripts.json scripts/seed-members-3-4.ts",
-    "fix:members": "ts-node -P tsconfig.scripts.json scripts/normalize-members.ts",
-    "fix:reports": "ts-node -P tsconfig.scripts.json scripts/normalize-reports.ts",
-    "seed:reports": "ts-node -P tsconfig.scripts.json scripts/seed-reports.ts"
+    "lint": "next lint"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

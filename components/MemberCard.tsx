@@ -24,8 +24,8 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
   return (
     <div
       onClick={handleClick}
-      className={`relative bg-white rounded-lg shadow-md p-4 flex gap-4 items-start ${
-        !isEditing ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''
+      className={`relative bg-white rounded-lg shadow-md overflow-hidden ${
+        !isEditing ? 'cursor-pointer hover:shadow-xl transition-shadow' : ''
       }`}
     >
       {isEditing && onDelete && (
@@ -35,52 +35,50 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
             e.stopPropagation()
             onDelete(member.id)
           }}
-          className="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+          className="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 z-10"
         >
           削除
         </button>
       )}
+      
       {/* プロフィール画像No.1 */}
       <div
-        className={isEditing ? 'w-20 flex-shrink-0' : 'w-20 h-20 flex-shrink-0'}
+        className="w-full aspect-square relative bg-gray-200"
         onClick={(e) => isEditing && e.stopPropagation()}
       >
         {isEditing ? (
-          <div className="-ml-1 -mt-1">
-            <ImageUploader
-              currentImage={member.imageNo1}
-              memberId={member.id}
-              imageType="no1"
-              label="プロフィール画像"
-              variant="compact"
-              onUploadSuccess={(url) => onUpdate(member.id, 'imageNo1', url)}
-            />
-          </div>
+          <ImageUploader
+            currentImage={member.imageNo1}
+            memberId={member.id}
+            imageType="no1"
+            label="プロフィール画像"
+            variant="overlay"
+            onUploadSuccess={(url) => onUpdate(member.id, 'imageNo1', url)}
+          />
         ) : member.imageNo1 ? (
           <Image
             src={member.imageNo1}
             alt={member.name}
-            width={80}
-            height={80}
-            className="w-full h-full object-cover rounded-lg"
+            fill
+            className="object-cover"
           />
         ) : (
-          <div className="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center">
-            <span className="text-gray-500 text-xs text-center">準備中</span>
+          <div className="w-full h-full flex items-center justify-center">
+            <span className="text-gray-500 text-sm">画像準備中</span>
           </div>
         )}
       </div>
 
       {/* 名前と一言 */}
-      <div className="flex-1 flex flex-col justify-center">
-        <h2 className="text-lg font-bold text-orange-primary mb-1">
+      <div className="p-4 text-center">
+        <h2 className="text-xl font-bold text-orange-primary mb-2">
           {isEditing ? (
             <input
               type="text"
               value={member.name}
               onChange={(e) => onUpdate(member.id, 'name', e.target.value)}
               onClick={(e) => e.stopPropagation()}
-              className="w-full border border-gray-300 rounded px-2 py-1"
+              className="w-full border border-gray-300 rounded px-2 py-1 text-center"
             />
           ) : (
             member.name
@@ -88,13 +86,13 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
         </h2>
         <p className="text-gray-600 text-sm">
           {isEditing ? (
-            <input
-              type="text"
+            <textarea
               value={member.tagline}
               onChange={(e) => onUpdate(member.id, 'tagline', e.target.value)}
               onClick={(e) => e.stopPropagation()}
-              className="w-full border border-gray-300 rounded px-2 py-1"
+              className="w-full border border-gray-300 rounded px-2 py-1 text-center"
               placeholder="一言を入力してください"
+              rows={2}
             />
           ) : (
             member.tagline
