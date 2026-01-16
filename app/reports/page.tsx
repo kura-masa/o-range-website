@@ -13,7 +13,7 @@ import VoiceRecorder from '@/components/VoiceRecorder'
 import HamburgerMenu from '@/components/HamburgerMenu'
 
 export default function ReportsPage() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, loading: authLoading } = useAuth()
   const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
   const { showToast, confirmAction } = useNotification()
   const router = useRouter()
@@ -34,13 +34,15 @@ export default function ReportsPage() {
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null) // 長押しタイマー
 
   useEffect(() => {
+    if (authLoading) return // 認証情報の読み込み中は何もしない
+    
     if (!isAuthenticated) {
       router.push('/')
       return
     }
     loadReports()
     loadHistoryList()
-  }, [isAuthenticated, router])
+  }, [isAuthenticated, authLoading, router])
 
 
   const loadReports = async () => {
@@ -527,6 +529,14 @@ export default function ReportsPage() {
     } finally {
       setProcessingVoice(null)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <p className="text-center text-gray-600">読み込み中...</p>
+      </div>
+    )
   }
 
   if (!isAuthenticated) {

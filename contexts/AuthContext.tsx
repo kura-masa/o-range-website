@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 
 interface AuthContextType {
   isAuthenticated: boolean
+  loading: boolean
   currentMemberId: string | null
   currentMemberName: string | null
   login: (id: string, memberId: string, memberName: string) => boolean
@@ -14,6 +15,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null)
   const [currentMemberName, setCurrentMemberName] = useState<string | null>(null)
 
@@ -28,6 +30,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCurrentMemberId(memberId)
       setCurrentMemberName(memberName)
     }
+    
+    setLoading(false)
   }, [])
 
   const login = (id: string, memberId: string, memberName: string) => {
@@ -56,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, currentMemberId, currentMemberName, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, loading, currentMemberId, currentMemberName, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
