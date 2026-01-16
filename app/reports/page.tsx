@@ -180,6 +180,9 @@ export default function ReportsPage() {
 
   // カード長押し開始
   const handleLongPressStart = (reportId: string) => {
+    // 履歴表示中は長押し削除を無効化
+    if (viewMode === 'history') return
+    
     const timer = setTimeout(() => {
       handleLongPressDelete(reportId)
     }, 800) // 800ms長押しで削除確認
@@ -820,7 +823,7 @@ export default function ReportsPage() {
                   >
                     {isModalEditing ? '保存' : '閉じる'}
                   </button>
-                  {!isModalEditing && isAuthenticated && (
+                  {!isModalEditing && isAuthenticated && viewMode === 'current' && (
                     <button
                       onClick={startModalEditing}
                       className="flex-1 bg-orange-primary text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors font-semibold"
