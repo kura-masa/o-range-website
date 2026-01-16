@@ -32,6 +32,7 @@ export default function ReportsPage() {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null) // 詳細表示用
   const [isModalEditing, setIsModalEditing] = useState(false) // モーダル内の編集状態
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null) // 長押しタイマー
+  const [showSpinner, setShowSpinner] = useState(false) // 保存時のスピナー表示
 
   useEffect(() => {
     if (authLoading) return // 認証情報の読み込み中は何もしない
@@ -128,9 +129,10 @@ export default function ReportsPage() {
 
   // モーダル内で保存（編集モード終了）
   const saveModalEdit = async () => {
+    const startTime = Date.now()
+    setShowSpinner(true)
+    
     try {
-      showToast('info', '保存中...')
-      
       // 変更されたレポートに仮teaserを設定
       const reportsWithTempTeasers = reports.map((currentReport) => {
         const originalReport = originalReports.find(r => r.id === currentReport.id)
@@ -150,6 +152,13 @@ export default function ReportsPage() {
       
       // 即座にFirestoreに保存
       await saveReports(reportsWithTempTeasers)
+      
+      // 最低0.1秒はスピナーを表示
+      const elapsed = Date.now() - startTime
+      if (elapsed < 100) {
+        await new Promise(resolve => setTimeout(resolve, 100 - elapsed))
+      }
+      
       setReports(reportsWithTempTeasers)
       setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
       setHasUnsavedChanges(false)
@@ -164,6 +173,8 @@ export default function ReportsPage() {
     } catch (error) {
       console.error('Error saving:', error)
       showToast('error', '保存に失敗しました')
+    } finally {
+      setShowSpinner(false)
     }
   }
 
@@ -302,9 +313,10 @@ export default function ReportsPage() {
   }
 
   const handleSave = async () => {
+    const startTime = Date.now()
+    setShowSpinner(true)
+    
     try {
-      showToast('info', '保存中...')
-      
       // 変更されたレポートに仮teaserを設定
       const reportsWithTempTeasers = reports.map((currentReport) => {
         const originalReport = originalReports.find(r => r.id === currentReport.id)
@@ -324,6 +336,13 @@ export default function ReportsPage() {
       
       // 即座にFirestoreに保存
       await saveReports(reportsWithTempTeasers)
+      
+      // 最低0.1秒はスピナーを表示
+      const elapsed = Date.now() - startTime
+      if (elapsed < 100) {
+        await new Promise(resolve => setTimeout(resolve, 100 - elapsed))
+      }
+      
       setReports(reportsWithTempTeasers)
       setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
       setHasUnsavedChanges(false)
@@ -334,13 +353,16 @@ export default function ReportsPage() {
     } catch (error) {
       console.error('Error saving:', error)
       showToast('error', '保存に失敗しました')
+    } finally {
+      setShowSpinner(false)
     }
   }
 
   const handleSaveAndExit = async () => {
+    const startTime = Date.now()
+    setShowSpinner(true)
+    
     try {
-      showToast('info', '保存中...')
-      
       // 変更されたレポートに仮teaserを設定
       const reportsWithTempTeasers = reports.map((currentReport) => {
         const originalReport = originalReports.find(r => r.id === currentReport.id)
@@ -360,6 +382,13 @@ export default function ReportsPage() {
       
       // 即座にFirestoreに保存
       await saveReports(reportsWithTempTeasers)
+      
+      // 最低0.1秒はスピナーを表示
+      const elapsed = Date.now() - startTime
+      if (elapsed < 100) {
+        await new Promise(resolve => setTimeout(resolve, 100 - elapsed))
+      }
+      
       setReports(reportsWithTempTeasers)
       setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
       setHasUnsavedChanges(false)
@@ -371,6 +400,8 @@ export default function ReportsPage() {
     } catch (error) {
       console.error('Error saving:', error)
       showToast('error', '保存に失敗しました')
+    } finally {
+      setShowSpinner(false)
     }
   }
 
@@ -804,6 +835,12 @@ export default function ReportsPage() {
         )
       })()}
 
+      {/* 保存時のスピナー */}
+      {showSpinner && (
+        <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-gray-300 border-t-orange-primary"></div>
+        </div>
+      )}
 
       </div>
     </>
