@@ -31,8 +31,6 @@ export default function ReportsPage() {
   const [currentReportIndex, setCurrentReportIndex] = useState(0)
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null) // 詳細表示用
   const [isModalEditing, setIsModalEditing] = useState(false) // モーダル内の編集状態
-  const [generatingTeasers, setGeneratingTeasers] = useState(false) // teaser生成中フラグ
-  const [teaserProgress, setTeaserProgress] = useState({ current: 0, total: 0 }) // 進捗
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null) // 長押しタイマー
 
   useEffect(() => {
@@ -44,19 +42,6 @@ export default function ReportsPage() {
     loadHistoryList()
   }, [isAuthenticated, router])
 
-  // teaser生成中はページ離脱を防ぐ
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (generatingTeasers) {
-        e.preventDefault()
-        e.returnValue = '魅力的な見出しを作成中です。ページを離れると保存されません。'
-        return '魅力的な見出しを作成中です。ページを離れると保存されません。'
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [generatingTeasers])
 
   const loadReports = async () => {
     setLoading(true)
@@ -141,8 +126,43 @@ export default function ReportsPage() {
 
   // モーダル内で保存（編集モード終了）
   const saveModalEdit = async () => {
-    await handleSave()
-    setIsModalEditing(false)
+    try {
+      showToast('info', '保存中...')
+      
+      // 変更されたレポートに仮teaserを設定
+      const reportsWithTempTeasers = reports.map((currentReport) => {
+        const originalReport = originalReports.find(r => r.id === currentReport.id)
+        const isNew = !originalReport
+        const isChanged = originalReport && (
+          originalReport.currentTrial !== currentReport.currentTrial ||
+          originalReport.progress !== currentReport.progress ||
+          originalReport.result !== currentReport.result
+        )
+        
+        if ((isNew || isChanged) && 
+            (currentReport.currentTrial || currentReport.progress || currentReport.result)) {
+          return { ...currentReport, teaser: '魅力的な見出しを作成中...' }
+        }
+        return currentReport
+      })
+      
+      // 即座にFirestoreに保存
+      await saveReports(reportsWithTempTeasers)
+      setReports(reportsWithTempTeasers)
+      setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
+      setHasUnsavedChanges(false)
+      showToast('success', '経過報告を保存しました')
+      
+      // モーダルを閉じる
+      setIsModalEditing(false)
+      closeReportDetail()
+      
+      // バックグラウンドでteaser生成
+      generateTeasersInBackground(reportsWithTempTeasers, originalReports)
+    } catch (error) {
+      console.error('Error saving:', error)
+      showToast('error', '保存に失敗しました')
+    }
   }
 
   // カード長押し開始
@@ -281,58 +301,90 @@ export default function ReportsPage() {
 
   const handleSave = async () => {
     try {
-      setGeneratingTeasers(true)
       showToast('info', '保存中...')
-      const updatedReports = await generateTeasersForChangedReports(reports, originalReports)
-      await saveReports(updatedReports)
-      setReports(updatedReports)
-      setOriginalReports(JSON.parse(JSON.stringify(updatedReports))) // 保存後に更新
+      
+      // 変更されたレポートに仮teaserを設定
+      const reportsWithTempTeasers = reports.map((currentReport) => {
+        const originalReport = originalReports.find(r => r.id === currentReport.id)
+        const isNew = !originalReport
+        const isChanged = originalReport && (
+          originalReport.currentTrial !== currentReport.currentTrial ||
+          originalReport.progress !== currentReport.progress ||
+          originalReport.result !== currentReport.result
+        )
+        
+        if ((isNew || isChanged) && 
+            (currentReport.currentTrial || currentReport.progress || currentReport.result)) {
+          return { ...currentReport, teaser: '魅力的な見出しを作成中...' }
+        }
+        return currentReport
+      })
+      
+      // 即座にFirestoreに保存
+      await saveReports(reportsWithTempTeasers)
+      setReports(reportsWithTempTeasers)
+      setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
       setHasUnsavedChanges(false)
       showToast('success', '経過報告を保存しました')
+      
+      // バックグラウンドでteaser生成
+      generateTeasersInBackground(reportsWithTempTeasers, originalReports)
     } catch (error) {
       console.error('Error saving:', error)
       showToast('error', '保存に失敗しました')
-    } finally {
-      setGeneratingTeasers(false)
-      setTeaserProgress({ current: 0, total: 0 })
     }
   }
 
   const handleSaveAndExit = async () => {
     try {
-      setGeneratingTeasers(true)
       showToast('info', '保存中...')
-      const updatedReports = await generateTeasersForChangedReports(reports, originalReports)
-      await saveReports(updatedReports)
-      setReports(updatedReports)
-      setOriginalReports(JSON.parse(JSON.stringify(updatedReports))) // 保存後に更新
+      
+      // 変更されたレポートに仮teaserを設定
+      const reportsWithTempTeasers = reports.map((currentReport) => {
+        const originalReport = originalReports.find(r => r.id === currentReport.id)
+        const isNew = !originalReport
+        const isChanged = originalReport && (
+          originalReport.currentTrial !== currentReport.currentTrial ||
+          originalReport.progress !== currentReport.progress ||
+          originalReport.result !== currentReport.result
+        )
+        
+        if ((isNew || isChanged) && 
+            (currentReport.currentTrial || currentReport.progress || currentReport.result)) {
+          return { ...currentReport, teaser: '魅力的な見出しを作成中...' }
+        }
+        return currentReport
+      })
+      
+      // 即座にFirestoreに保存
+      await saveReports(reportsWithTempTeasers)
+      setReports(reportsWithTempTeasers)
+      setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
       setHasUnsavedChanges(false)
       showToast('success', '経過報告を保存して編集モードを終了しました')
       disableEditMode()
+      
+      // バックグラウンドでteaser生成
+      generateTeasersInBackground(reportsWithTempTeasers, originalReports)
     } catch (error) {
       console.error('Error saving:', error)
       showToast('error', '保存に失敗しました')
-    } finally {
-      setGeneratingTeasers(false)
-      setTeaserProgress({ current: 0, total: 0 })
     }
   }
 
-  // 変更されたレポートのみteaserを生成する関数
-  const generateTeasersForChangedReports = async (
+  // バックグラウンドでteaserを生成する関数
+  const generateTeasersInBackground = async (
     current: Report[],
     original: Report[]
-  ): Promise<Report[]> => {
+  ) => {
     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
     if (!apiKey) {
       console.warn('Gemini APIキーが設定されていないため、teaser生成をスキップします')
-      return current
+      return
     }
 
-    const updatedReports = [...current]
-
-    // 変更されたレポートを事前にカウント
-    const changedReports = updatedReports.filter((currentReport) => {
+    // 変更されたレポートを特定
+    const changedReports = current.filter((currentReport) => {
       const originalReport = original.find(r => r.id === currentReport.id)
       const isNew = !originalReport
       const isChanged = originalReport && (
@@ -344,48 +396,38 @@ export default function ReportsPage() {
              (currentReport.currentTrial || currentReport.progress || currentReport.result)
     })
 
-    const total = changedReports.length
-    if (total === 0) {
-      return updatedReports
+    if (changedReports.length === 0) {
+      return
     }
 
-    setTeaserProgress({ current: 0, total })
+    console.log(`🤖 バックグラウンドでteaser生成開始: ${changedReports.length}件`)
 
-    let processedCount = 0
-
-    for (let i = 0; i < updatedReports.length; i++) {
-      const currentReport = updatedReports[i]
-      const originalReport = original.find(r => r.id === currentReport.id)
-
-      // 新規追加 or 内容が変更された場合のみteaser生成
-      const isNew = !originalReport
-      const isChanged = originalReport && (
-        originalReport.currentTrial !== currentReport.currentTrial ||
-        originalReport.progress !== currentReport.progress ||
-        originalReport.result !== currentReport.result
-      )
-
-      if ((isNew || isChanged) && 
-          (currentReport.currentTrial || currentReport.progress || currentReport.result)) {
-        try {
-          processedCount++
-          console.log(`🤖 teaser生成中 (${processedCount}/${total}): ${currentReport.nickname || '新規'}`)
-          
-          // 進捗を更新（UI反映のため少し待つ）
-          setTeaserProgress({ current: processedCount, total })
-          await new Promise(resolve => setTimeout(resolve, 50)) // UI更新を待つ
-          
-          const teaser = await generateReportTeaser(currentReport, apiKey)
-          updatedReports[i] = { ...currentReport, teaser }
-          console.log(`✅ teaser生成完了: ${teaser}`)
-        } catch (error) {
-          console.error('teaser生成エラー:', error)
-          // エラー時は既存のteaserを保持（なければ空）
-        }
+    // 各レポートのteaserを順次生成
+    for (const report of changedReports) {
+      try {
+        console.log(`🤖 teaser生成中: ${report.nickname || '新規'}`)
+        const teaser = await generateReportTeaser(report, apiKey)
+        console.log(`✅ teaser生成完了: ${teaser}`)
+        
+        // Firestoreを更新
+        const updatedReport = { ...report, teaser }
+        await saveReports(current.map(r => r.id === report.id ? updatedReport : r))
+        
+        // UIをリアルタイムで更新
+        setReports(prev => prev.map(r => r.id === report.id ? updatedReport : r))
+        setOriginalReports(prev => prev.map(r => r.id === report.id ? updatedReport : r))
+      } catch (error) {
+        console.error('teaser生成エラー:', error)
+        // エラー時はフォールバックteaserを使用
+        const fallbackTeaser = (report.currentTrial || report.progress || report.result || '').substring(0, 30) + '...'
+        const fallbackReport = { ...report, teaser: fallbackTeaser }
+        await saveReports(current.map(r => r.id === report.id ? fallbackReport : r))
+        setReports(prev => prev.map(r => r.id === report.id ? fallbackReport : r))
+        setOriginalReports(prev => prev.map(r => r.id === report.id ? fallbackReport : r))
       }
     }
 
-    return updatedReports
+    console.log(`✅ 全てのteaser生成完了`)
   }
 
   const handleUpdateReport = (id: string, field: keyof Report, value: string) => {
@@ -753,32 +795,6 @@ export default function ReportsPage() {
       })()}
 
 
-        {/* 保存中/teaser生成中のローディング表示 */}
-        {generatingTeasers && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm mx-4">
-              <div className="flex items-center justify-center mb-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-primary"></div>
-              </div>
-              <h3 className="text-lg font-bold text-center text-gray-800 mb-2">
-                {teaserProgress.total > 0 ? '魅力的な見出しを作成中...' : '保存中...'}
-              </h3>
-              {teaserProgress.total > 0 && (
-                <div className="mt-4">
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden relative">
-                    <div 
-                      className="bg-orange-primary h-2 rounded-full animate-indeterminate absolute top-0 left-0"
-                      style={{ width: '30%' }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-              <p className="text-sm text-gray-500 text-center mt-4">
-                {teaserProgress.total > 0 ? '処理が完了するまでお待ちください' : 'しばらくお待ちください'}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     </>
   )
