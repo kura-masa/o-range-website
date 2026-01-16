@@ -133,7 +133,7 @@ export default function ReportsPage() {
     setShowSpinner(true)
     
     try {
-      // 変更されたレポートに仮teaserを設定
+      // UI表示用に仮teaserを設定
       const reportsWithTempTeasers = reports.map((currentReport) => {
         const originalReport = originalReports.find(r => r.id === currentReport.id)
         const isNew = !originalReport
@@ -150,8 +150,17 @@ export default function ReportsPage() {
         return currentReport
       })
       
-      // 即座にFirestoreに保存
-      await saveReports(reportsWithTempTeasers)
+      // Firestore保存用に仮teaserを除外
+      const reportsToSave = reportsWithTempTeasers.map((report) => {
+        if (report.teaser === '魅力的な見出しを作成中...') {
+          const { teaser, ...rest } = report
+          return rest // teaserを除外
+        }
+        return report
+      })
+      
+      // Firestoreに保存（仮teaserなし）
+      await saveReports(reportsToSave)
       
       // 最低0.1秒はスピナーを表示
       const elapsed = Date.now() - startTime
@@ -159,8 +168,9 @@ export default function ReportsPage() {
         await new Promise(resolve => setTimeout(resolve, 100 - elapsed))
       }
       
+      // UI上では仮teaserを表示
       setReports(reportsWithTempTeasers)
-      setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
+      setOriginalReports(JSON.parse(JSON.stringify(reportsToSave))) // Firestoreの状態と一致させる
       setHasUnsavedChanges(false)
       showToast('success', '経過報告を保存しました')
       
@@ -320,7 +330,7 @@ export default function ReportsPage() {
     setShowSpinner(true)
     
     try {
-      // 変更されたレポートに仮teaserを設定
+      // UI表示用に仮teaserを設定
       const reportsWithTempTeasers = reports.map((currentReport) => {
         const originalReport = originalReports.find(r => r.id === currentReport.id)
         const isNew = !originalReport
@@ -337,8 +347,17 @@ export default function ReportsPage() {
         return currentReport
       })
       
-      // 即座にFirestoreに保存
-      await saveReports(reportsWithTempTeasers)
+      // Firestore保存用に仮teaserを除外
+      const reportsToSave = reportsWithTempTeasers.map((report) => {
+        if (report.teaser === '魅力的な見出しを作成中...') {
+          const { teaser, ...rest } = report
+          return rest // teaserを除外
+        }
+        return report
+      })
+      
+      // Firestoreに保存（仮teaserなし）
+      await saveReports(reportsToSave)
       
       // 最低0.1秒はスピナーを表示
       const elapsed = Date.now() - startTime
@@ -346,8 +365,9 @@ export default function ReportsPage() {
         await new Promise(resolve => setTimeout(resolve, 100 - elapsed))
       }
       
+      // UI上では仮teaserを表示
       setReports(reportsWithTempTeasers)
-      setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
+      setOriginalReports(JSON.parse(JSON.stringify(reportsToSave))) // Firestoreの状態と一致させる
       setHasUnsavedChanges(false)
       showToast('success', '経過報告を保存しました')
       
@@ -366,7 +386,7 @@ export default function ReportsPage() {
     setShowSpinner(true)
     
     try {
-      // 変更されたレポートに仮teaserを設定
+      // UI表示用に仮teaserを設定
       const reportsWithTempTeasers = reports.map((currentReport) => {
         const originalReport = originalReports.find(r => r.id === currentReport.id)
         const isNew = !originalReport
@@ -383,8 +403,17 @@ export default function ReportsPage() {
         return currentReport
       })
       
-      // 即座にFirestoreに保存
-      await saveReports(reportsWithTempTeasers)
+      // Firestore保存用に仮teaserを除外
+      const reportsToSave = reportsWithTempTeasers.map((report) => {
+        if (report.teaser === '魅力的な見出しを作成中...') {
+          const { teaser, ...rest } = report
+          return rest // teaserを除外
+        }
+        return report
+      })
+      
+      // Firestoreに保存（仮teaserなし）
+      await saveReports(reportsToSave)
       
       // 最低0.1秒はスピナーを表示
       const elapsed = Date.now() - startTime
@@ -392,8 +421,9 @@ export default function ReportsPage() {
         await new Promise(resolve => setTimeout(resolve, 100 - elapsed))
       }
       
+      // UI上では仮teaserを表示
       setReports(reportsWithTempTeasers)
-      setOriginalReports(JSON.parse(JSON.stringify(reportsWithTempTeasers)))
+      setOriginalReports(JSON.parse(JSON.stringify(reportsToSave))) // Firestoreの状態と一致させる
       setHasUnsavedChanges(false)
       showToast('success', '経過報告を保存して編集モードを終了しました')
       disableEditMode()
