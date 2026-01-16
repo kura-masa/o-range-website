@@ -272,3 +272,41 @@ ${question}
     throw new Error('回答生成に失敗しました')
   }
 }
+
+/**
+ * アイデアの内容からタイトルを生成
+ */
+export async function generateIdeaTitle(content: string, apiKey: string): Promise<string> {
+  if (!apiKey) {
+    console.warn('⚠️ Gemini API not configured. Using fallback title.')
+    return content.substring(0, 30) + (content.length > 30 ? '...' : '')
+  }
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' })
+
+    const prompt = `以下のアイデアの内容から、簡潔で魅力的なタイトルを生成してください。
+タイトルは15文字以内で、アイデアの核心を表現してください。
+タイトルのみを出力し、他の説明は不要です。
+
+【アイデアの内容】
+${content}
+
+【タイトル】`
+
+    const result = await model.generateContent(prompt)
+    const title = result.response.text().trim()
+
+    // タイトルが長すぎる場合は切り詰める
+    if (title.length > 30) {
+      return title.substring(0, 30)
+    }
+
+    return title
+  } catch (error) {
+    console.error('❌ Error generating idea title:', error)
+    // エラー時はフォールバック
+    return content.substring(0, 30) + (content.length > 30 ? '...' : '')
+  }
+}

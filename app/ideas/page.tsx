@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useNotification } from '@/contexts/NotificationContext'
 import { Member, Idea } from '@/lib/data'
 import { getMembers, getIdeas, saveIdea, deleteIdea } from '@/lib/firestore'
+import { generateIdeaTitle } from '@/lib/gemini'
 
 export default function IdeasPage() {
   const { isAuthenticated, currentMemberId } = useAuth()
@@ -18,8 +19,6 @@ export default function IdeasPage() {
 
   // 新規追加・編集用のフォーム状態
   const [formData, setFormData] = useState({
-    memberId: '',
-    ideaName: '',
     content: '',
     rejectionReason: ''
   })
@@ -46,16 +45,12 @@ export default function IdeasPage() {
   }
 
   const handleAddClick = () => {
-    if (members.length === 0) {
-      showToast('error', 'メンバーが登録されていません。先にメンバーを追加してください。')
+    if (!currentMemberId) {
+      showToast('error', 'ログインしてください')
       return
     }
-    
-    // ログインユーザーのメンバーIDをデフォルトに設定
-    const defaultMemberId = currentMemberId || members[0]?.id || ''
+
     setFormData({
-      memberId: defaultMemberId,
-      ideaName: '',
       content: '',
       rejectionReason: ''
     })
@@ -65,8 +60,6 @@ export default function IdeasPage() {
 
   const handleEditClick = (idea: Idea) => {
     setFormData({
-      memberId: idea.memberId,
-      ideaName: idea.ideaName,
       content: idea.content,
       rejectionReason: idea.rejectionReason || ''
     })
@@ -75,51 +68,150 @@ export default function IdeasPage() {
   }
 
   const handleSave = async () => {
-    if (!formData.ideaName.trim() || !formData.content.trim()) {
-      showToast('error', 'アイデア名と内容は必須です')
+    if (!formData.content.trim()) {
+      showToast('error', '内容は必須です')
+      return
+    }
+
+    if (!currentMemberId) {
+      showToast('error', 'ログインしてください')
       return
     }
 
     try {
-      const member = members.find(m => m.id === formData.memberId)
+      const member = members.find(m => m.id === currentMemberId)
       if (!member) {
         showToast('error', 'メンバーが見つかりません')
         return
       }
 
       if (editingId) {
-        // 編集
-        const updatedIdea: Idea = {
-          ...ideas.find(i => i.id === editingId)!,
-          memberId: formData.memberId,
-          memberName: member.name,
-          ideaName: formData.ideaName.trim(),
+        // 編集 - タイトルを「更新中...」にして即座に保存
+        const existingIdea = ideas.find(i => i.id === editingId)
+        if (!existingIdea) {
+          showToast('error', 'アイデアが見つかりません')
+          return
+        }
+
+        const temporaryUpdatedIdea: Idea = {
+          ...existingIdea,
+          ideaName: 'アイデア名自動生成中...',
           content: formData.content.trim(),
           rejectionReason: formData.rejectionReason.trim() || undefined,
           updatedAt: new Date().toISOString()
         }
-        await saveIdea(updatedIdea)
-        setIdeas(prev => prev.map(i => i.id === editingId ? updatedIdea : i))
+        
+        // 即座にFirestoreに保存
+        await saveIdea(temporaryUpdatedIdea)
+        
+        // UIを即座に更新してフォームを閉じる
+        setIdeas(prev => prev.map(i => i.id === editingId ? temporaryUpdatedIdea : i))
+        setShowAddForm(false)
+        const currentEditingId = editingId
+        setEditingId(null)
         showToast('success', 'アイデアを更新しました')
+        
+        // バックグラウンドでタイトル生成
+        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
+        if (apiKey) {
+          generateIdeaTitle(formData.content.trim(), apiKey)
+            .then(async (generatedTitle) => {
+              const finalUpdatedIdea: Idea = {
+                ...temporaryUpdatedIdea,
+                ideaName: generatedTitle,
+                updatedAt: new Date().toISOString()
+              }
+              
+              // Firestoreを更新
+              await saveIdea(finalUpdatedIdea)
+              
+              // UIをリアルタイムで更新
+              setIdeas(prev => prev.map(i => i.id === currentEditingId ? finalUpdatedIdea : i))
+            })
+            .catch((error) => {
+              console.error('タイトル生成エラー:', error)
+              // エラー時はフォールバックタイトルを使用
+              const fallbackIdea: Idea = {
+                ...temporaryUpdatedIdea,
+                ideaName: formData.content.trim().substring(0, 30) + '...',
+                updatedAt: new Date().toISOString()
+              }
+              saveIdea(fallbackIdea)
+              setIdeas(prev => prev.map(i => i.id === currentEditingId ? fallbackIdea : i))
+            })
+        } else {
+          // APIキーがない場合はフォールバック
+          const fallbackIdea: Idea = {
+            ...temporaryUpdatedIdea,
+            ideaName: formData.content.trim().substring(0, 30) + '...',
+            updatedAt: new Date().toISOString()
+          }
+          await saveIdea(fallbackIdea)
+          setIdeas(prev => prev.map(i => i.id === currentEditingId ? fallbackIdea : i))
+        }
       } else {
-        // 新規追加
-        const newIdea: Idea = {
-          id: `idea-${Date.now()}`,
-          memberId: formData.memberId,
+        // 新規追加 - フォームを即座に閉じて、仮タイトルで表示
+        const timestamp = Date.now()
+        const ideaId = `idea-${timestamp}`
+        const temporaryIdea: Idea = {
+          id: ideaId,
+          memberId: currentMemberId,
           memberName: member.name,
-          ideaName: formData.ideaName.trim(),
+          ideaName: 'アイデア名自動生成中...',
           content: formData.content.trim(),
           rejectionReason: formData.rejectionReason.trim() || undefined,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }
-        await saveIdea(newIdea)
-        setIdeas(prev => [newIdea, ...prev])
-        showToast('success', 'アイデアを追加しました')
+        
+        // 即座にFirestoreに保存
+        await saveIdea(temporaryIdea)
+        
+        // UIを即座に更新してフォームを閉じる
+        setIdeas(prev => [temporaryIdea, ...prev])
+        setShowAddForm(false)
+        setEditingId(null)
+        showToast('success', 'アイデアを保存しました')
+        
+        // バックグラウンドでタイトル生成
+        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
+        if (apiKey) {
+          generateIdeaTitle(formData.content.trim(), apiKey)
+            .then(async (generatedTitle) => {
+              const updatedIdea: Idea = {
+                ...temporaryIdea,
+                ideaName: generatedTitle,
+                updatedAt: new Date().toISOString()
+              }
+              
+              // Firestoreを更新
+              await saveIdea(updatedIdea)
+              
+              // UIをリアルタイムで更新
+              setIdeas(prev => prev.map(i => i.id === ideaId ? updatedIdea : i))
+            })
+            .catch((error) => {
+              console.error('タイトル生成エラー:', error)
+              // エラー時はフォールバックタイトルを使用
+              const fallbackIdea: Idea = {
+                ...temporaryIdea,
+                ideaName: formData.content.trim().substring(0, 30) + '...',
+                updatedAt: new Date().toISOString()
+              }
+              saveIdea(fallbackIdea)
+              setIdeas(prev => prev.map(i => i.id === ideaId ? fallbackIdea : i))
+            })
+        } else {
+          // APIキーがない場合はフォールバック
+          const fallbackIdea: Idea = {
+            ...temporaryIdea,
+            ideaName: formData.content.trim().substring(0, 30) + '...',
+            updatedAt: new Date().toISOString()
+          }
+          await saveIdea(fallbackIdea)
+          setIdeas(prev => prev.map(i => i.id === ideaId ? fallbackIdea : i))
+        }
       }
-
-      setShowAddForm(false)
-      setEditingId(null)
     } catch (error) {
       console.error('Error saving idea:', error)
       showToast('error', '保存に失敗しました')
@@ -143,12 +235,12 @@ export default function IdeasPage() {
   const filteredIdeas = selectedMemberId === 'all'
     ? ideas
     : selectedMemberId === 'my' && currentMemberId
-    ? ideas.filter(idea => idea.memberId === currentMemberId)
-    : ideas.filter(idea => idea.memberId === selectedMemberId)
-  
+      ? ideas.filter(idea => idea.memberId === currentMemberId)
+      : ideas.filter(idea => idea.memberId === selectedMemberId)
+
   // 自分のアイデアの数をカウント
-  const myIdeasCount = currentMemberId 
-    ? ideas.filter(i => i.memberId === currentMemberId).length 
+  const myIdeasCount = currentMemberId
+    ? ideas.filter(i => i.memberId === currentMemberId).length
     : 0
 
   if (loading) {
@@ -161,103 +253,73 @@ export default function IdeasPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 pb-24">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-orange-primary mb-2">💡 アイデア宝庫</h1>
-        {currentMemberId ? (
-          <p className="text-gray-600 text-sm">あなたのアイデアメモ帳です</p>
-        ) : (
-          <p className="text-gray-600 text-sm">各メンバーのアイデアメモを記録・閲覧できます</p>
-        )}
-      </header>
+      {/* ヘッダー（フォーム非表示時のみ） */}
+      {!showAddForm && (
+        <header className="mb-8 text-center">
+          <h1 className="text-2xl font-bold text-gray-800">あなたのアイデアメモ帳です</h1>
+        </header>
+      )}
 
-      {/* コントロール */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-3">
-        {/* メンバーフィルター */}
-        <select
-          value={selectedMemberId}
-          onChange={(e) => setSelectedMemberId(e.target.value)}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent"
-        >
-          {currentMemberId && (
-            <option value="my">📝 自分のアイデア ({myIdeasCount}件)</option>
-          )}
-          <option value="all">👥 全員のアイデア ({ideas.length}件)</option>
-          {members.map(member => {
-            const count = ideas.filter(i => i.memberId === member.id).length
-            return (
-              <option key={member.id} value={member.id}>
-                {member.name} ({count}件)
-              </option>
-            )
-          })}
-        </select>
-
-        {/* 追加ボタン */}
-        {isAuthenticated && (
-          <button
-            onClick={handleAddClick}
-            className="bg-orange-primary text-white px-6 py-2 rounded-lg hover:bg-orange-dark transition-colors whitespace-nowrap"
+      {/* フィルター（フォーム非表示時のみ表示） */}
+      {!showAddForm && (
+        <div className="mb-6">
+          <select
+            value={selectedMemberId}
+            onChange={(e) => setSelectedMemberId(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent"
           >
-            ➕ 追加
-          </button>
-        )}
-      </div>
+            {currentMemberId && (
+              <option value="my">📝 自分のアイデア ({myIdeasCount}件)</option>
+            )}
+            <option value="all">👥 全員のアイデア ({ideas.length}件)</option>
+            {members.map(member => {
+              const count = ideas.filter(i => i.memberId === member.id).length
+              return (
+                <option key={member.id} value={member.id}>
+                  {member.name} ({count}件)
+                </option>
+              )
+            })}
+          </select>
+        </div>
+      )}
+
+      {/* 右下の追加ボタン（フローティング・フォーム非表示時のみ） */}
+      {isAuthenticated && !showAddForm && (
+        <button
+          onClick={handleAddClick}
+          className="fixed bottom-6 right-6 bg-orange-primary text-white w-14 h-14 rounded-full shadow-lg hover:bg-orange-dark transition-all hover:scale-110 flex items-center justify-center z-50"
+          title="新しいアイデアを追加"
+        >
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      )}
 
       {/* 追加・編集フォーム */}
       {showAddForm && isAuthenticated && (
         <div className="mb-6 bg-white rounded-lg shadow-lg p-6 border-2 border-orange-primary">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">
-            {editingId ? '✏️ アイデアを編集' : '➕ 新しいアイデアを追加'}
-          </h3>
-
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">メンバー</label>
-              {members.length > 0 ? (
-                <select
-                  value={formData.memberId}
-                  onChange={(e) => setFormData({ ...formData, memberId: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent"
-                >
-                  {members.map(member => (
-                    <option key={member.id} value={member.id}>{member.name}</option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-sm text-red-600">メンバーが登録されていません</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">アイデア名 *</label>
-              <input
-                type="text"
-                value={formData.ideaName}
-                onChange={(e) => setFormData({ ...formData, ideaName: e.target.value })}
-                placeholder="なんでも良いよ！"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">内容 *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">内容</label>
               <textarea
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                placeholder=""
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent resize-none"
+                style={{ height: 'calc(50vh - 60px)', minHeight: '200px' }}
+                autoFocus
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">不採用理由</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">実行時の障壁を書いてください</label>
               <textarea
                 value={formData.rejectionReason}
                 onChange={(e) => setFormData({ ...formData, rejectionReason: e.target.value })}
-                placeholder="そのアイデアがうまくいかない理由を書いてね。障壁とか、コストとか。"
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent"
+                placeholder="例：相当なやる気が必要、すでにあった、お金がかかる、現在の技術的に不可能、市場がない、など"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent resize-none"
+                style={{ height: 'calc(25vh - 20px)', minHeight: '100px' }}
               />
             </div>
 
@@ -282,77 +344,74 @@ export default function IdeasPage() {
         </div>
       )}
 
-      {/* アイデアリスト */}
-      {filteredIdeas.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-lg">
-          <p className="text-gray-400 text-lg mb-2">📝</p>
-          <p className="text-gray-500">まだアイデアがありません</p>
-          {isAuthenticated && (
-            <p className="text-gray-400 text-sm mt-2">「➕ 追加」ボタンから追加してください</p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredIdeas.map(idea => {
-            const isMyIdea = currentMemberId === idea.memberId
-            return (
-              <div 
-                key={idea.id} 
-                className={`rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow border ${
-                  isMyIdea 
-                    ? 'bg-orange-50 border-orange-200' 
+      {/* アイデアリスト（フォーム非表示時のみ） */}
+      {!showAddForm && (
+        filteredIdeas.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-lg">
+            <p className="text-gray-400 text-lg mb-2">📝</p>
+            <p className="text-gray-500">あなたのアイデアをメモできます</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {filteredIdeas.map(idea => {
+              const isMyIdea = currentMemberId === idea.memberId
+              return (
+                <div
+                  key={idea.id}
+                  className={`rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow border ${isMyIdea
+                    ? 'bg-orange-50 border-orange-200'
                     : 'bg-white border-gray-100'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-800">{idea.ideaName}</h3>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {idea.memberName} • {new Date(idea.createdAt).toLocaleDateString('ja-JP')}
-                    </p>
-                  </div>
-                  {isAuthenticated && (
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditClick(idea)}
-                        className={`p-1 transition-colors ${
-                          isMyIdea 
-                            ? 'text-orange-400 hover:text-orange-600' 
+                    }`}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-gray-800">{idea.ideaName}</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {idea.memberName} • {new Date(idea.createdAt).toLocaleDateString('ja-JP')}
+                      </p>
+                    </div>
+                    {isAuthenticated && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleEditClick(idea)}
+                          className={`p-1 transition-colors ${isMyIdea
+                            ? 'text-orange-400 hover:text-orange-600'
                             : 'text-gray-400 hover:text-orange-primary'
-                        }`}
-                        title="編集"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(idea.id)}
-                        className="text-gray-400 hover:text-red-500 p-1 transition-colors"
-                        title="削除"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                            }`}
+                          title="編集"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(idea.id)}
+                          className="text-gray-400 hover:text-red-500 p-1 transition-colors"
+                          title="削除"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap mb-2">
+                    {idea.content}
+                  </div>
+
+                  {idea.rejectionReason && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <p className="text-xs font-semibold mb-1">障壁</p>
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{idea.rejectionReason}</p>
                     </div>
                   )}
                 </div>
-
-                <div className="text-sm text-gray-700 whitespace-pre-wrap mb-2">
-                  {idea.content}
-                </div>
-
-                {idea.rejectionReason && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <p className="text-xs font-semibold text-red-600 mb-1">❌ 却下理由</p>
-                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{idea.rejectionReason}</p>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )
       )}
     </div>
   )

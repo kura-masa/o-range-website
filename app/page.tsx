@@ -138,9 +138,9 @@ export default function Home() {
     <>
       <HamburgerMenu onAddMember={handleAddMember} />
 
-      <div className="max-w-6xl mx-auto px-4 py-6 pb-24">
-        <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-orange-primary mb-2">O-rangeメンバー</h1>
+      <div className="max-w-6xl mx-auto px-2 py-3 pb-24">
+        <header className="mb-3 text-center">
+          <h1 className="mt-1 text-3xl font-bold text-orange-primary">O-rangeメンバー</h1>
         </header>
 
         {members.length === 0 ? (
@@ -151,7 +151,7 @@ export default function Home() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 gap-2 md:gap-3">
             {members.map((member) => (
               <div key={member.id} id={`member-${member.id}`}>
                 <MemberCard

@@ -101,35 +101,31 @@ export default function MemberDetailPage() {
         {/* プロフィール画像No.2と基本情報 */}
         {/* スマホでも「画像(左) + テキスト(右)」を崩さないため flex-nowrap を明示 */}
         <div className="flex !flex-row !flex-nowrap gap-3 sm:gap-6 mb-6 items-start">
-          {isEditMode ? (
-            <div className="flex-shrink-0 w-24 sm:w-32">
+          {/* スマホ(w-24: 96px) / PC(sm:w-32: 128px) でサイズを分ける */}
+          <div className="w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0 relative">
+            {isEditMode ? (
               <ImageUploader
                 currentImage={member.imageNo2}
                 memberId={member.id}
                 imageType="no2"
                 onUploadSuccess={(url) => handleUpdate('imageNo2', url)}
                 label="プロフィール画像No.2"
-                variant="compact"
+                variant="overlay"
               />
-            </div>
-          ) : (
-            /* スマホ(w-24: 96px) / PC(sm:w-32: 128px) でサイズを分ける */
-            <div className="w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0">
-              {member.imageNo2 ? (
-                <Image
-                  src={member.imageNo2}
-                  alt={member.name}
-                  width={128}
-                  height={128}
-                  className="w-full h-full object-cover rounded-lg"
-                />
-              ) : (
-                <div className="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center">
-                  <span className="text-gray-500 text-[10px] sm:text-sm text-center px-1">準備中</span>
-                </div>
-              )}
-            </div>
-          )}
+            ) : member.imageNo2 ? (
+              <Image
+                src={member.imageNo2}
+                alt={member.name}
+                width={128}
+                height={128}
+                className="w-full h-full object-cover rounded-lg"
+              />
+            ) : (
+              <div className="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center">
+                <span className="text-gray-500 text-[10px] sm:text-sm text-center px-1">準備中</span>
+              </div>
+            )}
+          </div>
 
           <div className="flex-1 min-w-0 pt-1">
             {/* スマホで文字が溢れないよう text-xl に調整 */}

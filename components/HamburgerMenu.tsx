@@ -78,7 +78,7 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
       {/* ハンバーガーボタン */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 right-4 z-50 bg-orange-primary text-white p-3 rounded-lg shadow-lg hover:bg-orange-dark transition-colors"
+        className="fixed top-2 right-2 z-50 bg-orange-primary text-white p-3 rounded-lg shadow-lg hover:bg-orange-dark transition-colors"
         aria-label="メニュー"
       >
         {isOpen ? (
@@ -118,17 +118,13 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
               メンバー一覧
             </button>
 
-            {!isAuthenticated ? (
+            {!isAuthenticated && (
               <button
                 onClick={handleLoginClick}
                 className="w-full text-left px-2 py-2 rounded-lg hover:bg-orange-50 text-gray-700 hover:text-orange-primary transition-colors text-sm"
               >
                 ログイン
               </button>
-            ) : (
-              <div className="px-2 py-2 text-green-600 font-semibold text-sm">
-                ログイン中
-              </div>
             )}
 
             <button

@@ -24,9 +24,8 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
   return (
     <div
       onClick={handleClick}
-      className={`relative bg-white rounded-lg shadow-md overflow-hidden ${
-        !isEditing ? 'cursor-pointer hover:shadow-xl transition-shadow' : ''
-      }`}
+      className={`relative bg-white rounded-lg shadow-md overflow-hidden ${!isEditing ? 'cursor-pointer hover:shadow-xl transition-shadow' : ''
+        }`}
     >
       {isEditing && onDelete && (
         <button
@@ -40,7 +39,7 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
           削除
         </button>
       )}
-      
+
       {/* プロフィール画像No.1 */}
       <div
         className="w-full aspect-square relative bg-gray-200"
@@ -70,7 +69,7 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
       </div>
 
       {/* 名前と一言 */}
-      <div className="p-4 text-center">
+      <div className="p-2 text-center">
         <h2 className="text-xl font-bold text-orange-primary mb-2">
           {isEditing ? (
             <input
