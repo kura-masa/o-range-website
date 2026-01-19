@@ -33,6 +33,6 @@ env:
       - BUILD
       - RUNTIME
   - variable: GEMINI_API_KEY
-    value: AIzaSyAXi85CVpPVXHYzYcD-A8sNBogFrWb0N54
+    secret: GEMINI_API_KEY
     availability:
       - RUNTIME
