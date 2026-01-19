@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
       case 'searchSimilarTexts': {
         const { query, embeddings, topK } = params
-        const results = await searchSimilarTexts(query, embeddings, topK, apiKey)
+        const results = await searchSimilarTexts(query, embeddings, apiKey, topK)
         return NextResponse.json({ results })
       }
 
