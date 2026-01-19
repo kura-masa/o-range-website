@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useNotification } from '@/contexts/NotificationContext'
 import { Member, Idea } from '@/lib/data'
 import { getMembers, getIdeas, saveIdea, deleteIdea } from '@/lib/firestore'
-import { generateIdeaTitle } from '@/lib/gemini'
+import { generateIdeaTitle } from '@/lib/gemini-client'
 
 export default function IdeasPage() {
   const { isAuthenticated, currentMemberId } = useAuth()
@@ -112,43 +112,31 @@ export default function IdeasPage() {
         showToast('success', 'アイデアを更新しました')
         
         // バックグラウンドでタイトル生成
-        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-        if (apiKey) {
-          generateIdeaTitle(formData.content.trim(), apiKey)
-            .then(async (generatedTitle) => {
-              const finalUpdatedIdea: Idea = {
-                ...temporaryUpdatedIdea,
-                ideaName: generatedTitle,
-                updatedAt: new Date().toISOString()
-              }
-              
-              // Firestoreを更新
-              await saveIdea(finalUpdatedIdea)
-              
-              // UIをリアルタイムで更新
-              setIdeas(prev => prev.map(i => i.id === currentEditingId ? finalUpdatedIdea : i))
-            })
-            .catch((error) => {
-              console.error('タイトル生成エラー:', error)
-              // エラー時はフォールバックタイトルを使用
-              const fallbackIdea: Idea = {
-                ...temporaryUpdatedIdea,
-                ideaName: formData.content.trim().substring(0, 30) + '...',
-                updatedAt: new Date().toISOString()
-              }
-              saveIdea(fallbackIdea)
-              setIdeas(prev => prev.map(i => i.id === currentEditingId ? fallbackIdea : i))
-            })
-        } else {
-          // APIキーがない場合はフォールバック
-          const fallbackIdea: Idea = {
-            ...temporaryUpdatedIdea,
-            ideaName: formData.content.trim().substring(0, 30) + '...',
-            updatedAt: new Date().toISOString()
-          }
-          await saveIdea(fallbackIdea)
-          setIdeas(prev => prev.map(i => i.id === currentEditingId ? fallbackIdea : i))
-        }
+        generateIdeaTitle(formData.content.trim())
+          .then(async (generatedTitle) => {
+            const finalUpdatedIdea: Idea = {
+              ...temporaryUpdatedIdea,
+              ideaName: generatedTitle,
+              updatedAt: new Date().toISOString()
+            }
+            
+            // Firestoreを更新
+            await saveIdea(finalUpdatedIdea)
+            
+            // UIをリアルタイムで更新
+            setIdeas(prev => prev.map(i => i.id === currentEditingId ? finalUpdatedIdea : i))
+          })
+          .catch((error) => {
+            console.error('タイトル生成エラー:', error)
+            // エラー時はフォールバックタイトルを使用
+            const fallbackIdea: Idea = {
+              ...temporaryUpdatedIdea,
+              ideaName: formData.content.trim().substring(0, 30) + '...',
+              updatedAt: new Date().toISOString()
+            }
+            saveIdea(fallbackIdea)
+            setIdeas(prev => prev.map(i => i.id === currentEditingId ? fallbackIdea : i))
+          })
       } else {
         // 新規追加 - フォームを即座に閉じて、仮タイトルで表示
         const timestamp = Date.now()
@@ -174,43 +162,31 @@ export default function IdeasPage() {
         showToast('success', 'アイデアを保存しました')
         
         // バックグラウンドでタイトル生成
-        const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-        if (apiKey) {
-          generateIdeaTitle(formData.content.trim(), apiKey)
-            .then(async (generatedTitle) => {
-              const updatedIdea: Idea = {
-                ...temporaryIdea,
-                ideaName: generatedTitle,
-                updatedAt: new Date().toISOString()
-              }
-              
-              // Firestoreを更新
-              await saveIdea(updatedIdea)
-              
-              // UIをリアルタイムで更新
-              setIdeas(prev => prev.map(i => i.id === ideaId ? updatedIdea : i))
-            })
-            .catch((error) => {
-              console.error('タイトル生成エラー:', error)
-              // エラー時はフォールバックタイトルを使用
-              const fallbackIdea: Idea = {
-                ...temporaryIdea,
-                ideaName: formData.content.trim().substring(0, 30) + '...',
-                updatedAt: new Date().toISOString()
-              }
-              saveIdea(fallbackIdea)
-              setIdeas(prev => prev.map(i => i.id === ideaId ? fallbackIdea : i))
-            })
-        } else {
-          // APIキーがない場合はフォールバック
-          const fallbackIdea: Idea = {
-            ...temporaryIdea,
-            ideaName: formData.content.trim().substring(0, 30) + '...',
-            updatedAt: new Date().toISOString()
-          }
-          await saveIdea(fallbackIdea)
-          setIdeas(prev => prev.map(i => i.id === ideaId ? fallbackIdea : i))
-        }
+        generateIdeaTitle(formData.content.trim())
+          .then(async (generatedTitle) => {
+            const updatedIdea: Idea = {
+              ...temporaryIdea,
+              ideaName: generatedTitle,
+              updatedAt: new Date().toISOString()
+            }
+            
+            // Firestoreを更新
+            await saveIdea(updatedIdea)
+            
+            // UIをリアルタイムで更新
+            setIdeas(prev => prev.map(i => i.id === ideaId ? updatedIdea : i))
+          })
+          .catch((error) => {
+            console.error('タイトル生成エラー:', error)
+            // エラー時はフォールバックタイトルを使用
+            const fallbackIdea: Idea = {
+              ...temporaryIdea,
+              ideaName: formData.content.trim().substring(0, 30) + '...',
+              updatedAt: new Date().toISOString()
+            }
+            saveIdea(fallbackIdea)
+            setIdeas(prev => prev.map(i => i.id === ideaId ? fallbackIdea : i))
+          })
       }
     } catch (error) {
       console.error('Error saving idea:', error)

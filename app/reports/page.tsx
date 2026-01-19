@@ -7,7 +7,7 @@ import { useNotification } from '@/contexts/NotificationContext'
 import { useRouter } from 'next/navigation'
 import { Report, ReportHistory } from '@/lib/data'
 import { getReports, saveReports, saveReportsToHistory, getReportsHistoryList, getReportsHistory, getAllEmbeddings } from '@/lib/firestore'
-import { summarizeReportWithAI, searchSimilarTexts, answerWithRAG, generateReportTeaser } from '@/lib/gemini'
+import { summarizeReportWithAI, searchSimilarTexts, answerWithRAG, generateReportTeaser } from '@/lib/gemini-client'
 import SaveButtons from '@/components/SaveButtons'
 import VoiceRecorder from '@/components/VoiceRecorder'
 import HamburgerMenu from '@/components/HamburgerMenu'
@@ -251,14 +251,6 @@ export default function ReportsPage() {
       return
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-    console.log('🔑 APIキー確認:', apiKey ? 'あり' : 'なし')
-
-    if (!apiKey) {
-      showToast('error', 'Gemini APIキーが設定されていません')
-      return
-    }
-
     setRagSearching(true)
     setRagAnswer('')
     console.log('⏳ 検索状態を開始に設定')
@@ -280,12 +272,12 @@ export default function ReportsPage() {
 
       // 類似文書を検索
       console.log('🔎 類似文書を検索中...')
-      const similarDocs = await searchSimilarTexts(ragQuery, allEmbeddings, apiKey, 5)
+      const similarDocs = await searchSimilarTexts(ragQuery, allEmbeddings, 5)
       console.log('🔎 類似文書:', similarDocs.length, '件')
 
       // RAGで回答を生成
       console.log('🤖 AI回答を生成中...')
-      const answer = await answerWithRAG(ragQuery, similarDocs, apiKey)
+      const answer = await answerWithRAG(ragQuery, similarDocs)
       console.log('✅ AI回答生成完了:', answer.substring(0, 50) + '...')
 
       setRagAnswer(answer)
@@ -443,12 +435,6 @@ export default function ReportsPage() {
     current: Report[],
     original: Report[]
   ) => {
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-    if (!apiKey) {
-      console.warn('Gemini APIキーが設定されていないため、teaser生成をスキップします')
-      return
-    }
-
     // 変更されたレポートを特定
     const changedReports = current.filter((currentReport) => {
       const originalReport = original.find(r => r.id === currentReport.id)
@@ -472,7 +458,7 @@ export default function ReportsPage() {
     for (const report of changedReports) {
       try {
         console.log(`🤖 teaser生成中: ${report.nickname || '新規'}`)
-        const teaser = await generateReportTeaser(report, apiKey)
+        const teaser = await generateReportTeaser(report)
         console.log(`✅ teaser生成完了: ${teaser}`)
         
         // Firestoreを更新
@@ -557,19 +543,12 @@ export default function ReportsPage() {
   }
 
   const handleVoiceInput = async (reportId: string, transcript: string) => {
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-
-    if (!apiKey) {
-      showToast('error', 'Gemini APIキーが設定されていません。環境変数を確認してください。')
-      return
-    }
-
     setProcessingVoice(reportId)
 
     try {
       showToast('info', 'AIで要約中...しばらくお待ちください')
 
-      const summary = await summarizeReportWithAI(transcript, apiKey)
+      const summary = await summarizeReportWithAI(transcript)
 
       // 報告内容を更新
       setReports((prev) =>
