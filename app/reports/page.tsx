@@ -79,7 +79,7 @@ export default function ReportsPage() {
 
     confirmAction({
       title: '履歴として保存',
-      message: '現在の報告内容を今週の履歴として保存しますか？RAG検索用の埋め込みも生成しますか？（推奨）',
+      message: '現在の報告内容を今週の履歴として保存しますか？保存後、全メンバーの報告内容が空になります。',
       confirmLabel: '保存する（埋め込み付き）',
       variant: 'primary',
       onConfirm: async () => {
@@ -92,6 +92,22 @@ export default function ReportsPage() {
           const weekId = await saveReportsToHistory(undefined, true) // 埋め込み生成を有効化
 
           console.log('✅ 保存完了:', weekId)
+          
+          // 全メンバーの報告内容を空にする
+          console.log('🧹 報告内容をクリア中...')
+          const clearedReports = reports.map(report => ({
+            ...report,
+            currentTrial: '',
+            progress: '',
+            result: '',
+            teaser: ''
+          }))
+          
+          await saveReports(clearedReports)
+          setReports(clearedReports)
+          setOriginalReports(JSON.parse(JSON.stringify(clearedReports)))
+          console.log('✅ 報告内容クリア完了')
+          
           console.log('📢 トースト表示: 保存完了')
           showToast('success', `週次報告を履歴として保存しました（${weekId}）`)
 
