@@ -35,11 +35,13 @@ export default function VoiceRecorder({
       recognition.interimResults = true
 
       recognition.onresult = (event: any) => {
+        console.log('🎤 音声認識結果を受信:', event)
         let interimTranscript = ''
         let finalTranscript = ''
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcriptPart = event.results[i][0].transcript
+          console.log(`🎤 結果[${i}]:`, transcriptPart, 'isFinal:', event.results[i].isFinal)
           if (event.results[i].isFinal) {
             finalTranscript += transcriptPart + ' '
           } else {
@@ -47,7 +49,13 @@ export default function VoiceRecorder({
           }
         }
 
-        setTranscript((prev) => prev + finalTranscript)
+        console.log('🎤 finalTranscript:', finalTranscript)
+        console.log('🎤 interimTranscript:', interimTranscript)
+        setTranscript((prev) => {
+          const newTranscript = prev + finalTranscript
+          console.log('🎤 更新後のtranscript:', newTranscript)
+          return newTranscript
+        })
       }
 
       recognition.onerror = (event: any) => {
@@ -71,9 +79,13 @@ export default function VoiceRecorder({
 
   const startRecording = () => {
     if (recognitionRef.current && !isRecording) {
+      console.log('🎤 録音開始')
       setTranscript('')
       recognitionRef.current.start()
       setIsRecording(true)
+      console.log('🎤 録音状態: true')
+    } else {
+      console.log('🎤 録音開始失敗:', { hasRecognition: !!recognitionRef.current, isRecording })
     }
   }
 
