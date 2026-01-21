@@ -374,9 +374,27 @@ export async function saveReportsToHistory(weekId?: string, generateEmbeddings: 
       embeddings,
     }
 
+    // Firestoreはundefinedを許可しないため、undefinedフィールドを削除（再帰的に）
+    const removeUndefined = (obj: any): any => {
+      if (Array.isArray(obj)) {
+        return obj.map(item => removeUndefined(item))
+      } else if (obj !== null && typeof obj === 'object') {
+        const cleaned: any = {}
+        Object.keys(obj).forEach((key) => {
+          if (obj[key] !== undefined) {
+            cleaned[key] = removeUndefined(obj[key])
+          }
+        })
+        return cleaned
+      }
+      return obj
+    }
+
+    const firestoreData = removeUndefined(historyData)
+
     // reports_history コレクションに保存
     const docRef = doc(db, 'reports_history', finalWeekId)
-    await setDoc(docRef, historyData)
+    await setDoc(docRef, firestoreData)
     
     console.log(`✅ Saved reports history for week ${finalWeekId}`)
     return finalWeekId
