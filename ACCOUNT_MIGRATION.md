@@ -221,7 +221,30 @@ Firebase Authenticationを使っている場合:
 - [ ] `.firebaserc`を更新
 - [ ] Firebase CLIで再ログイン
 - [ ] 初期データを投入
-- [ ] 動作確認完了
+- [ ] App Hosting 用のシークレット（GEMINI_API_KEY）を設定
+- [ ] 開発サーバーで動作確認
 - [ ] デプロイ（必要に応じて）
 
-これで新しいGoogleアカウントでのFirebase/Google Cloud設定が完了です！
+これで新しいGoogleアカウントでのFirebase/Google Cloud設定が完了です！🎉
+
+---
+
+## 🔐 補足: App Hosting のシークレット設定
+
+Gemini API を使用する場合、App Hosting にシークレットを登録する必要があります。
+
+### 手順
+
+1. **シークレットの登録**
+   ```bash
+   firebase apphosting:secrets:set GEMINI_API_KEY
+   ```
+   ※プロンプトが表示されたら、`.env.local` にある `NEXT_PUBLIC_GEMINI_API_KEY` の値を入力してください。
+
+2. **権限の付与**
+   ```bash
+   firebase apphosting:secrets:grantaccess GEMINI_API_KEY
+   ```
+
+3. **再デプロイ**
+   設定後、Firebase Console から手動で「再デプロイ」を行うか、再度 GitHub へプッシュしてください。
