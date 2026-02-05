@@ -222,12 +222,22 @@ Firebase Authenticationを使っている場合:
 - [ ] Firebase CLIで再ログイン
 - [ ] 初期データを投入
 - [ ] App Hosting 用のシークレット（GEMINI_API_KEY）を設定
+- [ ] Google Cloud (GCL) の必要なサービスを有効化
 - [ ] 開発サーバーで動作確認
 - [ ] デプロイ（必要に応じて）
 
 これで新しいGoogleアカウントでのFirebase/Google Cloud設定が完了です！🎉
 
 ---
+
+## ☁️ 補足: Google Cloud (GCL) サービスの有効化
+
+App Hosting や Gemini API を利用する場合、Google Cloud コンソールで以下の API が管理画面から有効になっている必要があります：
+
+- Cloud Build API
+- Artifact Registry API
+- Secret Manager API
+- Generative Language API (Gemini API 使用時)
 
 ## 🔐 補足: App Hosting のシークレット設定
 
