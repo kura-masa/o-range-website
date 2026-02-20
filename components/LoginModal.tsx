@@ -49,18 +49,28 @@ export default function LoginModal({ onClose, onSuccess, redirectTo }: LoginModa
       return
     }
 
-    if (!selectedMemberId) {
+    if (members.length > 0 && !selectedMemberId) {
       setError('メンバーを選択してください')
       return
     }
 
-    const selectedMember = members.find(m => m.id === selectedMemberId)
-    if (!selectedMember) {
-      setError('選択されたメンバーが見つかりません')
-      return
+    let loginMemberId = selectedMemberId
+    let loginMemberName = ''
+
+    if (members.length > 0) {
+      const selectedMember = members.find(m => m.id === selectedMemberId)
+      if (!selectedMember) {
+        setError('選択されたメンバーが見つかりません')
+        return
+      }
+      loginMemberName = selectedMember.name
+    } else {
+      // メンバーがいない場合は管理者としてログイン
+      loginMemberId = 'admin'
+      loginMemberName = '管理者'
     }
 
-    const success = login(id, selectedMemberId, selectedMember.name)
+    const success = login(id, loginMemberId, loginMemberName)
     if (success) {
       // ログイン成功後、redirectToが指定されていれば遷移
       if (redirectTo) {
@@ -81,39 +91,34 @@ export default function LoginModal({ onClose, onSuccess, redirectTo }: LoginModa
           <div className="text-center py-4">
             <p className="text-gray-600">読み込み中...</p>
           </div>
-        ) : members.length === 0 ? (
-          <div className="text-center py-4">
-            <p className="text-gray-500 mb-4">メンバーが登録されていません</p>
-            <p className="text-sm text-gray-400 mb-4">
-              先にランディングページでメンバーを追加してください
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              閉じる
-            </button>
-          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="member" className="block text-sm font-medium text-gray-700 mb-2">
-                あなたは誰ですか？
-              </label>
-              <select
-                id="member"
-                value={selectedMemberId}
-                onChange={(e) => setSelectedMemberId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent"
-              >
-                {members.map(member => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {members.length > 0 ? (
+              <div>
+                <label htmlFor="member" className="block text-sm font-medium text-gray-700 mb-2">
+                  あなたは誰ですか？
+                </label>
+                <select
+                  id="member"
+                  value={selectedMemberId}
+                  onChange={(e) => setSelectedMemberId(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-primary focus:border-transparent"
+                >
+                  {members.map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="bg-yellow-50 p-3 rounded-md mb-4">
+                <p className="text-sm text-yellow-800">
+                  メンバーが登録されていません。<br />
+                  管理者としてログインし、メンバーを追加してください。
+                </p>
+              </div>
+            )}
 
             <div>
               <label htmlFor="id" className="block text-sm font-medium text-gray-700 mb-2">
