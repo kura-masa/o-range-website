@@ -66,6 +66,8 @@ export default function Home() {
   }
 
   const handleAddMember = async () => {
+    console.log('handleAddMember called')
+
     // 既存のメンバーIDから次の番号を取得
     const existingIds = members
       .map(m => m.id)
@@ -73,8 +75,11 @@ export default function Home() {
       .map(id => parseInt(id.replace('member-', ''), 10))
       .filter(num => !isNaN(num))
 
+    console.log('Existing IDs:', existingIds)
+
     const nextNumber = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1
     const id = `member-${String(nextNumber).padStart(5, '0')}`
+    console.log('New Member ID:', id)
 
     const newMember: Member = {
       id,
@@ -91,10 +96,12 @@ export default function Home() {
     }
 
     try {
+      // Optimistic Update: 先にUIを更新
+      setMembers((prev) => [...prev, newMember])
+
       // 追加時に即Firestoreへ保存（自動保存）
       await saveMember(newMember)
-      setMembers((prev) => [...prev, newMember])
-      // 追加直後は未保存フラグは立てない（以降の編集で立つ）
+      console.log('Member saved to Firestore')
 
       // 新しく追加されたメンバーまでスクロール
       setTimeout(() => {
@@ -106,6 +113,8 @@ export default function Home() {
     } catch (e) {
       console.error('Error auto-saving new member:', e)
       showToast('error', 'メンバーの追加に失敗しました')
+      // ロールバック
+      setMembers((prev) => prev.filter(m => m.id !== id))
     }
   }
 
