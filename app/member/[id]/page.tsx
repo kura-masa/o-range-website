@@ -100,7 +100,7 @@ export default function MemberDetailPage() {
           ← 戻る
         </button>
         {isEditMode ? (
-          <div className="w-full h-full" style={{ minHeight: '55vw', maxHeight: '70vh' }}>
+          <div className="absolute inset-0">
             <ImageUploader
               currentImage={member.imageNo2}
               memberId={member.id}
@@ -128,7 +128,7 @@ export default function MemberDetailPage() {
         )}
 
         {/* 下部グラデーションオーバーレイ */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0a0a0f]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0a0a0f] pointer-events-none" />
       </div>
 
       {/* コンテンツエリア */}
