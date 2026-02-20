@@ -9,8 +9,7 @@ import HamburgerMenu from '@/components/HamburgerMenu'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'O-range - メンバー紹介',
-  description: '活動を見える化するWebサイト',
+  title: 'O-range - メンバー紹介'
 }
 
 export default function RootLayout({
