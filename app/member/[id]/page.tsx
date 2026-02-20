@@ -33,7 +33,6 @@ export default function MemberDetailPage() {
   const loadMember = async (id: string) => {
     setLoading(true)
     try {
-      // Firebaseから直接取得
       const data = await getMember(id)
       setMember(data)
       if (data) {
@@ -74,151 +73,187 @@ export default function MemberDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <p className="text-center text-gray-600">読み込み中...</p>
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <p className="text-gray-400 text-sm">読み込み中...</p>
       </div>
     )
   }
 
   if (!member) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-6">
-        <p className="text-center text-gray-600">メンバーが見つかりませんでした</p>
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <p className="text-gray-400 text-sm">メンバーが見つかりませんでした</p>
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
-      <button
-        onClick={() => router.push('/')}
-        className="mb-4 text-orange-primary hover:text-orange-dark flex items-center"
-      >
-        ← 戻る
-      </button>
+    <div className="min-h-screen bg-[#0a0a0f] text-white pb-24">
+      {/* ヒーロー画像エリア */}
+      <div className="relative w-full" style={{ minHeight: '55vw', maxHeight: '70vh' }}>
+        {/* 戻るボタン */}
+        <button
+          onClick={() => router.back()}
+          className="absolute top-4 left-4 z-20 flex items-center gap-1 text-orange-primary text-sm font-semibold drop-shadow-lg hover:opacity-80 transition-opacity"
+          style={{ textShadow: '0 0 8px rgba(0,0,0,0.8)' }}
+        >
+          ← 戻る
+        </button>
+        {isEditMode ? (
+          <div className="w-full h-full" style={{ minHeight: '55vw', maxHeight: '70vh' }}>
+            <ImageUploader
+              currentImage={member.imageNo2}
+              memberId={member.id}
+              imageType="no2"
+              onUploadSuccess={(url) => handleUpdate('imageNo2', url)}
+              label="プロフィール画像"
+              variant="overlay"
+            />
+          </div>
+        ) : member.imageNo2 ? (
+          <Image
+            src={member.imageNo2}
+            alt={member.name}
+            fill
+            className="object-cover object-top"
+            priority
+          />
+        ) : (
+          <div
+            className="w-full flex items-center justify-center bg-[#1a1a2e]"
+            style={{ minHeight: '55vw', maxHeight: '70vh' }}
+          >
+            <span className="text-gray-500 text-sm">準備中</span>
+          </div>
+        )}
 
-      <div className="bg-white rounded-lg shadow-md p-6">
-        {/* プロフィール画像No.2と基本情報 */}
-        {/* スマホでも「画像(左) + テキスト(右)」を崩さないため flex-nowrap を明示 */}
-        <div className="flex !flex-row !flex-nowrap gap-3 sm:gap-6 mb-6 items-start">
-          {/* スマホ(w-24: 96px) / PC(sm:w-32: 128px) でサイズを分ける */}
-          <div className="w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0 relative">
+        {/* 下部グラデーションオーバーレイ */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0a0a0f]" />
+      </div>
+
+      {/* コンテンツエリア */}
+      <div className="px-5 -mt-6 relative z-10">
+        {/* 名前 */}
+        <div className="mb-4 text-center">
+          {isEditMode ? (
+            <input
+              type="text"
+              value={member.name}
+              onChange={(e) => handleUpdate('name', e.target.value)}
+              className="w-full bg-transparent border-b border-orange-primary text-4xl font-bold text-white text-center outline-none"
+            />
+          ) : (
+            <h1 className="text-4xl sm:text-5xl font-bold text-white leading-tight">
+              {member.name}
+            </h1>
+          )}
+        </div>
+
+        {/* 基本情報 */}
+        <div className="mb-8 space-y-1 text-sm text-gray-300 text-center">
+          {/* 生年月日 */}
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-orange-primary">📅</span>
             {isEditMode ? (
-              <ImageUploader
-                currentImage={member.imageNo2}
-                memberId={member.id}
-                imageType="no2"
-                onUploadSuccess={(url) => handleUpdate('imageNo2', url)}
-                label="プロフィール画像No.2"
-                variant="overlay"
-              />
-            ) : member.imageNo2 ? (
-              <Image
-                src={member.imageNo2}
-                alt={member.name}
-                width={128}
-                height={128}
-                className="w-full h-full object-cover rounded-lg"
+              <input
+                type="text"
+                value={member.birthDate || ''}
+                onChange={(e) => handleUpdate('birthDate', e.target.value)}
+                className="bg-transparent border-b border-gray-600 text-sm text-white outline-none w-40 text-center"
+                placeholder="例）2000年"
               />
             ) : (
-              <div className="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center">
-                <span className="text-gray-500 text-[10px] sm:text-sm text-center px-1">準備中</span>
-              </div>
+              <span>生年月日：{member.birthDate || '未設定'}</span>
             )}
           </div>
 
-          <div className="flex-1 min-w-0 pt-1">
-            {/* スマホで文字が溢れないよう text-xl に調整 */}
-            <h1 className="text-xl sm:text-2xl font-bold text-orange-primary mb-2 sm:mb-3 truncate">
-              {isEditMode ? (
-                <input
-                  type="text"
-                  value={member.name}
-                  onChange={(e) => handleUpdate('name', e.target.value)}
-                  className="w-full border border-gray-300 rounded px-2 py-1 text-base"
-                />
-              ) : (
-                member.name
-              )}
-            </h1>
+          {/* 出身 */}
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-orange-primary">📍</span>
+            {isEditMode ? (
+              <input
+                type="text"
+                value={member.hometown || ''}
+                onChange={(e) => handleUpdate('hometown', e.target.value)}
+                className="bg-transparent border-b border-gray-600 text-sm text-white outline-none w-40 text-center"
+                placeholder="例）宮崎県"
+              />
+            ) : (
+              <span>出身：{member.hometown || '未設定'}</span>
+            )}
+          </div>
 
-            {/* 行間を少し詰め、文字サイズをスマホ用に調整 */}
-            <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm">
-              <div className="flex flex-row items-baseline gap-1">
-                <span className="font-semibold text-gray-700 whitespace-nowrap">生年月日:&nbsp;</span>
-                {isEditMode ? (
-                  <input
-                    type="text"
-                    value={member.birthDate || ''}
-                    onChange={(e) => handleUpdate('birthDate', e.target.value)}
-                    className="min-w-0 flex-1 border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
-                    placeholder="例）1995年4月15日"
-                  />
-                ) : (
-                  <span className="text-gray-600 truncate">{member.birthDate || '未設定'}</span>
-                )}
-              </div>
-
-              <div className="flex flex-row items-baseline gap-1">
-                <span className="font-semibold text-gray-700 whitespace-nowrap">出身:&nbsp;</span>
-                {isEditMode ? (
-                  <input
-                    type="text"
-                    value={member.hometown || ''}
-                    onChange={(e) => handleUpdate('hometown', e.target.value)}
-                    className="min-w-0 flex-1 border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
-                    placeholder="例）東京都"
-                  />
-                ) : (
-                  <span className="text-gray-600 truncate">{member.hometown || '未設定'}</span>
-                )}
-              </div>
-
-              <div className="flex flex-row items-baseline gap-1">
-                <span className="font-semibold text-gray-700 whitespace-nowrap">趣味:&nbsp;</span>
-                {isEditMode ? (
-                  <input
-                    type="text"
-                    value={member.hobbies || ''}
-                    onChange={(e) => handleUpdate('hobbies', e.target.value)}
-                    className="min-w-0 flex-1 border border-gray-300 rounded px-2 py-1 text-xs sm:text-sm"
-                    placeholder="例）読書、ランニング"
-                  />
-                ) : (
-                  <span className="text-gray-600 truncate">{member.hobbies || '未設定'}</span>
-                )}
-              </div>
-            </div>
+          {/* 趣味 */}
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-orange-primary">🎯</span>
+            {isEditMode ? (
+              <input
+                type="text"
+                value={member.hobbies || ''}
+                onChange={(e) => handleUpdate('hobbies', e.target.value)}
+                className="bg-transparent border-b border-gray-600 text-sm text-white outline-none w-40 text-center"
+                placeholder="例）健康・読書"
+              />
+            ) : (
+              <span>趣味：{member.hobbies || '未設定'}</span>
+            )}
           </div>
         </div>
 
-        {/* 趣味や想い */}
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-orange-primary mb-3">趣味や想い</h2>
+        {/* HOBBIES & VISION セクション */}
+        <div className="mb-8">
+          <h2
+            className="text-xl font-black tracking-widest mb-2"
+            style={{ color: '#FF8C42', textShadow: '0 0 12px rgba(255,140,66,0.6)' }}
+          >
+            HOBBIES &amp; VISION
+          </h2>
+          <div className="border-b-2 border-orange-primary mb-4 w-12" />
           {isEditMode ? (
             <textarea
               value={member.thoughts || ''}
               onChange={(e) => handleUpdate('thoughts', e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 min-h-[100px]"
-              placeholder="趣味や想いを入力してください"
+              className="w-full bg-[#111118] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 outline-none min-h-[120px] resize-none"
+              placeholder="趣味・ビジョンを入力してください"
             />
           ) : (
-            <p className="text-gray-700 whitespace-pre-wrap">{member.thoughts || '未設定'}</p>
+            <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
+              {member.thoughts || '未設定'}
+            </div>
           )}
         </div>
 
-        {/* 経歴と今後の展開 */}
-        <div>
-          <h2 className="text-xl font-semibold text-orange-primary mb-3">経歴と今後の展開</h2>
+        {/* CAREER & FUTURE セクション */}
+        <div className="mb-8">
+          <h2
+            className="text-xl font-black tracking-widest mb-2"
+            style={{ color: '#FF8C42', textShadow: '0 0 12px rgba(255,140,66,0.6)' }}
+          >
+            CAREER &amp; FUTURE
+          </h2>
+          <div className="border-b-2 border-orange-primary mb-4 w-12" />
           {isEditMode ? (
             <textarea
               value={member.career || ''}
               onChange={(e) => handleUpdate('career', e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 min-h-[150px]"
-              placeholder="経歴と今後の展開を入力してください"
+              className="w-full bg-[#111118] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 outline-none min-h-[150px] resize-none"
+              placeholder="経歴・今後の展開を入力してください"
             />
           ) : (
-            <p className="text-gray-700 whitespace-pre-wrap">{member.career || '未設定'}</p>
+            <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
+              {member.career ? (
+                member.career.split('\n').map((line, i) =>
+                  line.trim() ? (
+                    <div key={i} className="flex items-start gap-2 mb-1">
+                      <span className="text-orange-primary mt-0.5 flex-shrink-0">◎</span>
+                      <span>{line}</span>
+                    </div>
+                  ) : null
+                )
+              ) : (
+                <span className="text-gray-500">未設定</span>
+              )}
+            </div>
           )}
         </div>
       </div>
