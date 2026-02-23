@@ -26,9 +26,18 @@ function parsePosition(pos?: string): { x: number; y: number } {
   }
 }
 
-function buildTransform(x: number, y: number, scale: number): string {
-  const tx = ((50 - x) * (scale - 1) / scale).toFixed(2)
-  const ty = ((50 - y) * (scale - 1) / scale).toFixed(2)
+/**
+ * 表示用 transform を生成する。
+ * コンテナに対して object-cover 相当を scale で実現し、
+ * 中心を (x%, y%) にずらす。
+ *
+ * translate の単位は「コンテナに対する %」ではなく
+ * transform-origin: center center のときの画像自身の % なので
+ * (50 - x) / scale が正しいオフセット。
+ */
+export function buildTransform(x: number, y: number, scale: number): string {
+  const tx = ((50 - x) / scale).toFixed(3)
+  const ty = ((50 - y) / scale).toFixed(3)
   return `scale(${scale}) translate(${tx}%, ${ty}%)`
 }
 
@@ -47,7 +56,7 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
   const [scale, setScale] = useState(initialScale)
   const [isDragging, setIsDragging] = useState(false)
 
-  const frameRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; posX: number; posY: number } | null>(null)
   const lastPinchDistRef = useRef<number | null>(null)
   const lastPinchScaleRef = useRef<number>(initialScale)
@@ -57,7 +66,7 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
   useEffect(() => { positionRef.current = position }, [position])
   useEffect(() => { scaleRef.current = scale }, [scale])
 
-  // マウス
+  // ドラッグ開始
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -69,14 +78,15 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
     }
   }, [])
 
+  // ドラッグ中（右に動かす → x が増える → 画像が右に寄る）
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragStartRef.current || !frameRef.current) return
-    const rect = frameRef.current.getBoundingClientRect()
+    if (!dragStartRef.current || !containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - dragStartRef.current.mouseX
     const dy = e.clientY - dragStartRef.current.mouseY
     setPosition({
-      x: Math.min(100, Math.max(0, dragStartRef.current.posX - (dx / rect.width) * 100)),
-      y: Math.min(100, Math.max(0, dragStartRef.current.posY - (dy / rect.height) * 100)),
+      x: Math.min(100, Math.max(0, dragStartRef.current.posX + (dx / rect.width) * 100)),
+      y: Math.min(100, Math.max(0, dragStartRef.current.posY + (dy / rect.height) * 100)),
     })
   }, [])
 
@@ -127,14 +137,14 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
         const ratio = dist / lastPinchDistRef.current
         setScale(Math.min(4, Math.max(0.5, +(lastPinchScaleRef.current * ratio).toFixed(2))))
       }
-    } else if (e.touches.length === 1 && dragStartRef.current && frameRef.current) {
+    } else if (e.touches.length === 1 && dragStartRef.current && containerRef.current) {
       const t = e.touches[0]
-      const rect = frameRef.current.getBoundingClientRect()
+      const rect = containerRef.current.getBoundingClientRect()
       const dx = t.clientX - dragStartRef.current.mouseX
       const dy = t.clientY - dragStartRef.current.mouseY
       setPosition({
-        x: Math.min(100, Math.max(0, dragStartRef.current.posX - (dx / rect.width) * 100)),
-        y: Math.min(100, Math.max(0, dragStartRef.current.posY - (dy / rect.height) * 100)),
+        x: Math.min(100, Math.max(0, dragStartRef.current.posX + (dx / rect.width) * 100)),
+        y: Math.min(100, Math.max(0, dragStartRef.current.posY + (dy / rect.height) * 100)),
       })
     }
   }, [])
@@ -159,9 +169,9 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
     }
   }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd])
 
-  // フレームにホイール登録
+  // ホイールをコンテナに登録
   useEffect(() => {
-    const el = frameRef.current
+    const el = containerRef.current
     if (!el) return
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
@@ -175,25 +185,22 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
   }, [])
 
   const transform = buildTransform(position.x, position.y, scale)
-
-  // 枠サイズ: 画面短辺の80%
   const frameSize = 'min(80vw, 80vh)'
 
   return (
     <div
-      ref={frameRef}
-      className="fixed inset-0 z-50 overflow-hidden"
+      ref={containerRef}
+      className="fixed inset-0 z-50 overflow-hidden bg-black"
       style={{
         cursor: isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
-        background: 'black',
       }}
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
     >
-      {/* フルスクリーンの画像（背景として全体に広がる） */}
+      {/* フルスクリーン画像：transform で動かす */}
       <div
-        className="absolute inset-0 origin-center select-none"
+        className="absolute inset-0 origin-center select-none pointer-events-none"
         style={{ transform }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -205,21 +212,17 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
         />
       </div>
 
-      {/* 暗いマスク（枠の外を暗くする） */}
-      {/* 上 */}
+      {/* 枠外を暗くするマスク（4枚の帯） */}
       <div className="absolute inset-x-0 top-0 bg-black bg-opacity-60 pointer-events-none"
         style={{ height: `calc((100% - ${frameSize}) / 2)` }} />
-      {/* 下 */}
       <div className="absolute inset-x-0 bottom-0 bg-black bg-opacity-60 pointer-events-none"
         style={{ height: `calc((100% - ${frameSize}) / 2)` }} />
-      {/* 左 */}
       <div className="absolute inset-y-0 left-0 bg-black bg-opacity-60 pointer-events-none"
         style={{ width: `calc((100% - ${frameSize}) / 2)` }} />
-      {/* 右 */}
       <div className="absolute inset-y-0 right-0 bg-black bg-opacity-60 pointer-events-none"
         style={{ width: `calc((100% - ${frameSize}) / 2)` }} />
 
-      {/* 正方形の太枠（実際の表示範囲を示す） */}
+      {/* 正方形の太枠（表示範囲） */}
       <div
         className="absolute pointer-events-none"
         style={{
@@ -233,7 +236,7 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
         }}
       />
 
-      {/* 枠の上のラベル */}
+      {/* 「ズーム・移動できます」ラベル */}
       <div
         className="absolute pointer-events-none flex justify-center"
         style={{
@@ -356,6 +359,7 @@ export default function ImageUploader({
   const handleConfirm = async (pos: { x: number; y: number }, sc: number) => {
     const posStr = `${Math.round(pos.x)}% ${Math.round(pos.y)}%`
     if (!pendingFile) {
+      // 位置・ズームのみ変更
       onPositionChange?.(posStr)
       onScaleChange?.(sc)
       setShowEditor(false)

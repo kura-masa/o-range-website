@@ -3,17 +3,13 @@
 import { Member } from '@/lib/data'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import ImageUploader from './ImageUploader'
+import ImageUploader, { buildTransform as _buildTransform } from './ImageUploader'
 
-// position ("50% 30%") と scale からCSSのtransform文字列を生成
 function buildTransform(position?: string, scale?: number): string {
-  const s = scale ?? 1
   const parts = (position || '50% 50%').split(' ')
   const x = parseFloat(parts[0]) || 50
   const y = parseFloat(parts[1]) || 50
-  const tx = ((50 - x) * (s - 1) / s).toFixed(2)
-  const ty = ((50 - y) * (s - 1) / s).toFixed(2)
-  return `scale(${s}) translate(${tx}%, ${ty}%)`
+  return _buildTransform(x, y, scale ?? 1)
 }
 
 interface MemberCardProps {
