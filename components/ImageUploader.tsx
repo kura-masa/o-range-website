@@ -1,467 +1,393 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { uploadMemberImage, validateImageFile } from '@/lib/storage'
 
 interface ImageUploaderProps {
   currentImage?: string
-  currentPosition?: string  // "50% 30%"
-  currentScale?: number     // 1.0 = 等倍
+  currentPosition?: string  // "60% 30%"
+  currentScale?: number     // 1.5
   memberId: string
   imageType: 'no1' | 'no2'
   onUploadSuccess: (url: string) => void
-  onPositionChange?: (position: string) => void
+  onPositionChange?: (pos: string) => void
   onScaleChange?: (scale: number) => void
   label: string
   variant?: 'default' | 'compact' | 'overlay'
 }
 
-function parsePosition(pos?: string): { x: number; y: number } {
-  if (!pos) return { x: 50, y: 50 }
-  const parts = pos.split(' ')
+// 表示側で使う共通スタイル生成関数
+export function buildImageStyle(
+  position: string = '50% 50%',
+  scale: number = 1
+): React.CSSProperties {
   return {
-    x: parseFloat(parts[0]) || 50,
-    y: parseFloat(parts[1]) || 50,
-  }
-}
-
-/**
- * 画像のスタイルを生成する。
- * object-position で位置を、transform: scale + transform-origin でズームを管理。
- * この方式はコンテナサイズに依存しないため、モーダルと表示側で完全に一致する。
- */
-export function buildImageStyle(x: number, y: number, scale: number): React.CSSProperties {
-  return {
-    objectFit: 'cover',
-    objectPosition: `${x}% ${y}%`,
-    transform: `scale(${scale})`,
-    transformOrigin: `${x}% ${y}%`,
     width: '100%',
     height: '100%',
+    objectFit: 'cover',
+    objectPosition: position,
+    transform: `scale(${scale})`,
+    transformOrigin: 'center',
   }
 }
 
-// ==================== 編集モーダル ====================
-interface EditorModalProps {
-  src: string
-  initialPosition: { x: number; y: number }
-  initialScale: number
-  uploading: boolean
-  onConfirm: (position: { x: number; y: number }, scale: number) => void
-  onCancel: () => void
-}
-
-function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm, onCancel }: EditorModalProps) {
-  const [position, setPosition] = useState(initialPosition)
-  const [scale, setScale] = useState(initialScale)
-  const [isDragging, setIsDragging] = useState(false)
-
-  const containerRef = useRef<HTMLDivElement>(null)
-  const dragStartRef = useRef<{ mouseX: number; mouseY: number; posX: number; posY: number } | null>(null)
-  const lastPinchDistRef = useRef<number | null>(null)
-  const lastPinchScaleRef = useRef<number>(initialScale)
-  const positionRef = useRef(position)
-  const scaleRef = useRef(scale)
-
-  useEffect(() => { positionRef.current = position }, [position])
-  useEffect(() => { scaleRef.current = scale }, [scale])
-
-  // ドラッグ開始
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-    dragStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      posX: positionRef.current.x,
-      posY: positionRef.current.y,
-    }
-  }, [])
-
-  // ドラッグ中：右にドラッグ → 画像が右に動く（x が増える）
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragStartRef.current || !containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const dx = e.clientX - dragStartRef.current.mouseX
-    const dy = e.clientY - dragStartRef.current.mouseY
-    setPosition({
-      x: Math.min(100, Math.max(0, dragStartRef.current.posX + (dx / rect.width) * 100)),
-      y: Math.min(100, Math.max(0, dragStartRef.current.posY + (dy / rect.height) * 100)),
-    })
-  }, [])
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-    dragStartRef.current = null
-  }, [])
-
-  // ホイールズーム
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY < 0 ? 0.1 : -0.1
-    setScale(prev => Math.min(4, Math.max(1, +(prev + delta).toFixed(2))))
-  }, [])
-
-  // タッチ開始
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      const t = e.touches[0]
-      setIsDragging(true)
-      dragStartRef.current = {
-        mouseX: t.clientX,
-        mouseY: t.clientY,
-        posX: positionRef.current.x,
-        posY: positionRef.current.y,
-      }
-      lastPinchDistRef.current = null
-    } else if (e.touches.length === 2) {
-      setIsDragging(false)
-      dragStartRef.current = null
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      )
-      lastPinchDistRef.current = dist
-      lastPinchScaleRef.current = scaleRef.current
-    }
-  }, [])
-
-  // タッチ移動
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    e.preventDefault()
-    if (e.touches.length === 2) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      )
-      if (lastPinchDistRef.current !== null) {
-        const ratio = dist / lastPinchDistRef.current
-        setScale(Math.min(4, Math.max(1, +(lastPinchScaleRef.current * ratio).toFixed(2))))
-      }
-    } else if (e.touches.length === 1 && dragStartRef.current && containerRef.current) {
-      const t = e.touches[0]
-      const rect = containerRef.current.getBoundingClientRect()
-      const dx = t.clientX - dragStartRef.current.mouseX
-      const dy = t.clientY - dragStartRef.current.mouseY
-      setPosition({
-        x: Math.min(100, Math.max(0, dragStartRef.current.posX + (dx / rect.width) * 100)),
-        y: Math.min(100, Math.max(0, dragStartRef.current.posY + (dy / rect.height) * 100)),
-      })
-    }
-  }, [])
-
-  const handleTouchEnd = useCallback(() => {
-    setIsDragging(false)
-    dragStartRef.current = null
-    lastPinchDistRef.current = null
-  }, [])
-
-  // グローバルイベント登録
-  useEffect(() => {
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-    window.addEventListener('touchmove', handleTouchMove, { passive: false })
-    window.addEventListener('touchend', handleTouchEnd)
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-      window.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('touchend', handleTouchEnd)
-    }
-  }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd])
-
-  // ホイールをコンテナに登録
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    el.addEventListener('wheel', handleWheel, { passive: false })
-    return () => el.removeEventListener('wheel', handleWheel)
-  }, [handleWheel])
-
-  // スクロール禁止
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [])
-
-  const imgStyle = buildImageStyle(position.x, position.y, scale)
-  const frameSize = 'min(80vw, 80vh)'
-
-  return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 z-50 overflow-hidden bg-black"
-      style={{ cursor: isDragging ? 'grabbing' : 'grab', touchAction: 'none' }}
-      onMouseDown={handleMouseDown}
-      onTouchStart={handleTouchStart}
-    >
-      {/* フルスクリーン画像 */}
-      <div className="absolute inset-0 select-none pointer-events-none overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={src}
-          alt="編集中"
-          draggable={false}
-          style={imgStyle}
-        />
-      </div>
-
-      {/* 枠外を暗くするマスク（4枚の帯） */}
-      <div className="absolute inset-x-0 top-0 bg-black bg-opacity-60 pointer-events-none"
-        style={{ height: `calc((100% - ${frameSize}) / 2)` }} />
-      <div className="absolute inset-x-0 bottom-0 bg-black bg-opacity-60 pointer-events-none"
-        style={{ height: `calc((100% - ${frameSize}) / 2)` }} />
-      <div className="absolute inset-y-0 left-0 bg-black bg-opacity-60 pointer-events-none"
-        style={{ width: `calc((100% - ${frameSize}) / 2)` }} />
-      <div className="absolute inset-y-0 right-0 bg-black bg-opacity-60 pointer-events-none"
-        style={{ width: `calc((100% - ${frameSize}) / 2)` }} />
-
-      {/* 正方形の太枠（表示範囲） */}
-      <div
-        className="absolute pointer-events-none"
-        style={{
-          width: frameSize,
-          height: frameSize,
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          border: '3px solid white',
-          boxShadow: '0 0 0 1px rgba(255,255,255,0.3)',
-        }}
-      />
-
-      {/* 「ズーム・移動できます」ラベル */}
-      <div
-        className="absolute pointer-events-none flex justify-center"
-        style={{
-          width: frameSize,
-          top: `calc(50% - ${frameSize} / 2 - 28px)`,
-          left: '50%',
-          transform: 'translateX(-50%)',
-        }}
-      >
-        <span className="text-white text-xs select-none opacity-80 bg-black bg-opacity-40 px-2 py-0.5 rounded">
-          ズーム・移動できます
-        </span>
-      </div>
-
-      {/* ✕ / ✓ ボタン */}
-      <div className="absolute bottom-8 inset-x-0 flex items-center justify-center gap-12">
-        <button
-          onClick={onCancel}
-          disabled={uploading}
-          className="w-14 h-14 flex items-center justify-center rounded-full bg-gray-700 bg-opacity-90 text-white text-2xl hover:bg-gray-600 disabled:opacity-50 transition-colors shadow-lg"
-        >
-          ✕
-        </button>
-        {uploading && <span className="text-white text-sm">アップロード中...</span>}
-        <button
-          onClick={() => onConfirm(position, scale)}
-          disabled={uploading}
-          className="w-14 h-14 flex items-center justify-center rounded-full bg-orange-500 bg-opacity-90 text-white text-2xl hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-lg"
-        >
-          ✓
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ==================== ボタン群（横並び）====================
-interface ImageButtonsProps {
-  uploading: boolean
-  hasPreview: boolean
-  compact?: boolean
-  onSelectFile: () => void
-  onAdjust: () => void
-}
-
-function ImageButtons({ uploading, hasPreview, compact, onSelectFile, onAdjust }: ImageButtonsProps) {
-  const base = compact ? 'px-2 py-1 text-xs rounded' : 'px-4 py-2 text-sm rounded-full'
-  return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <button
-        onClick={onSelectFile}
-        disabled={uploading}
-        className={`${base} bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 transition-colors shadow`}
-      >
-        画像変更
-      </button>
-      {hasPreview && (
-        <button
-          onClick={onAdjust}
-          disabled={uploading}
-          className={`${base} bg-gray-600 text-white hover:bg-gray-500 disabled:opacity-50 transition-colors shadow`}
-        >
-          位置調節
-        </button>
-      )}
-    </div>
-  )
-}
-
-// ==================== メインコンポーネント ====================
 export default function ImageUploader({
   currentImage,
-  currentPosition,
-  currentScale,
+  currentPosition = '50% 50%',
+  currentScale = 1,
   memberId,
   imageType,
   onUploadSuccess,
   onPositionChange,
   onScaleChange,
   label,
-  variant = 'default'
+  variant = 'default',
 }: ImageUploaderProps) {
-  const [uploading, setUploading] = useState(false)
   const [preview, setPreview] = useState<string | undefined>(currentImage)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState('')
   const [pendingFile, setPendingFile] = useState<File | null>(null)
-  const [showEditor, setShowEditor] = useState(false)
-  const [error, setError] = useState<string>('')
+
+  // エディタモーダルの状態
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [position, setPosition] = useState(currentPosition)
+  const [scale, setScale] = useState(currentScale)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // ドラッグ用ref
+  const dragging = useRef(false)
+  const lastPointer = useRef({ x: 0, y: 0 })
+
+  // ピンチ用ref
+  const lastPinchDist = useRef<number | null>(null)
+
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // position文字列をxとyに分解
+  const parsePos = (pos: string) => {
+    const parts = pos.split(' ')
+    return {
+      x: parseFloat(parts[0]) || 50,
+      y: parseFloat(parts[1]) || 50,
+    }
+  }
+
+  // ドラッグ開始
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return
+    dragging.current = true
+    lastPointer.current = { x: e.clientX, y: e.clientY }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }, [])
+
+  // ドラッグ中：ポインター移動量をobject-positionに反映
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return
+    const container = containerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const dx = e.clientX - lastPointer.current.x
+    const dy = e.clientY - lastPointer.current.y
+    lastPointer.current = { x: e.clientX, y: e.clientY }
+
+    // ピクセル移動量をパーセントに変換（スケール考慮）
+    // 右にドラッグ→画像の見える部分が右へ→object-position x が増える
+    setPosition(prev => {
+      const { x, y } = parsePos(prev)
+      // 移動量を感度調整（スケールが大きいほど細かく動く）
+      const sensitivity = 100 / scale
+      const nx = Math.min(100, Math.max(0, x + (dx / rect.width) * sensitivity))
+      const ny = Math.min(100, Math.max(0, y + (dy / rect.height) * sensitivity))
+      return `${nx.toFixed(2)}% ${ny.toFixed(2)}%`
+    })
+  }, [scale])
+
+  const onPointerUp = useCallback(() => {
+    dragging.current = false
+  }, [])
+
+  // ピンチ
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      lastPinchDist.current = Math.sqrt(dx * dx + dy * dy)
+    }
+  }, [])
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastPinchDist.current !== null) {
+      e.preventDefault()
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const ratio = dist / lastPinchDist.current
+      setScale(prev => Math.min(4, Math.max(0.5, prev * ratio)))
+      lastPinchDist.current = dist
+    }
+  }, [])
+
+  const onTouchEnd = useCallback(() => {
+    lastPinchDist.current = null
+  }, [])
+
+  // ホイールズーム
   useEffect(() => {
-    if (!pendingFile) setPreview(currentImage)
-  }, [currentImage, pendingFile])
+    if (!editorOpen) return
+    const el = containerRef.current
+    if (!el) return
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? 0.95 : 1.05
+      setScale(prev => Math.min(4, Math.max(0.5, prev * delta)))
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [editorOpen])
 
-  const openFileSelector = () => fileInputRef.current?.click()
-
+  // ファイル選択
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setError('')
     const validation = validateImageFile(file)
-    if (!validation.valid) { setError(validation.error || '不正なファイルです'); return }
+    if (!validation.valid) {
+      setError(validation.error || '不正なファイルです')
+      return
+    }
     const objectUrl = URL.createObjectURL(file)
     setPreview(objectUrl)
     setPendingFile(file)
-    setShowEditor(true)
-    e.target.value = ''
+    // 新しい画像のときは位置・スケールをリセット
+    setPosition('50% 50%')
+    setScale(1)
+    setEditorOpen(true)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleConfirm = async (pos: { x: number; y: number }, sc: number) => {
-    const posStr = `${pos.x.toFixed(1)}% ${pos.y.toFixed(1)}%`
-    if (!pendingFile) {
-      onPositionChange?.(posStr)
-      onScaleChange?.(sc)
-      setShowEditor(false)
-      return
+  // 位置調節ボタン
+  const handleOpenEditor = () => {
+    if (!preview) return
+    setPosition(currentPosition || '50% 50%')
+    setScale(currentScale || 1)
+    setEditorOpen(true)
+  }
+
+  // 確定
+  const handleConfirm = async () => {
+    if (pendingFile) {
+      setUploading(true)
+      try {
+        const url = await uploadMemberImage(memberId, pendingFile, imageType)
+        onUploadSuccess(url)
+        setPreview(url)
+        setPendingFile(null)
+      } catch (err) {
+        console.error('Upload error:', err)
+        setError('アップロードに失敗しました')
+        setPreview(currentImage)
+        setPendingFile(null)
+        setEditorOpen(false)
+        return
+      } finally {
+        setUploading(false)
+      }
     }
-    setUploading(true)
-    try {
-      const downloadURL = await uploadMemberImage(memberId, pendingFile, imageType)
-      onUploadSuccess(downloadURL)
-      onPositionChange?.(posStr)
-      onScaleChange?.(sc)
-      setPreview(downloadURL)
-      setPendingFile(null)
-    } catch (err) {
-      console.error('Upload error:', err)
-      setError('アップロードに失敗しました')
+    onPositionChange?.(position)
+    onScaleChange?.(scale)
+    setEditorOpen(false)
+  }
+
+  // キャンセル
+  const handleCancel = () => {
+    if (pendingFile) {
       setPreview(currentImage)
       setPendingFile(null)
-    } finally {
-      setUploading(false)
-      setShowEditor(false)
     }
-  }
-
-  const handleCancel = () => {
-    setPreview(currentImage)
-    setPendingFile(null)
-    setShowEditor(false)
+    setPosition(currentPosition || '50% 50%')
+    setScale(currentScale || 1)
+    setEditorOpen(false)
     setError('')
   }
 
-  const editorSrc = preview || currentImage || ''
-  const initPos = parsePosition(currentPosition)
-  const initScale = currentScale ?? 1
-
-  const fileInput = (
-    <input
-      ref={fileInputRef}
-      type="file"
-      accept="image/jpeg,image/jpg,image/png,image/webp"
-      onChange={handleFileSelect}
-      className="hidden"
-    />
+  // ボタンUI（横並び：「画像変更」「位置調節」）
+  const renderButtons = (dark = false) => (
+    <div className="flex gap-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        className={
+          dark
+            ? 'px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50'
+            : 'px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50'
+        }
+      >
+        画像変更
+      </button>
+      {preview && (
+        <button
+          onClick={handleOpenEditor}
+          className={
+            dark
+              ? 'px-3 py-1.5 text-sm bg-gray-700 text-white rounded-lg hover:bg-gray-600'
+              : 'px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-400'
+          }
+        >
+          位置調節
+        </button>
+      )}
+    </div>
   )
 
-  const modal = showEditor && editorSrc ? (
-    <EditorModal
-      src={editorSrc}
-      initialPosition={pendingFile ? { x: 50, y: 50 } : initPos}
-      initialScale={pendingFile ? 1 : initScale}
-      uploading={uploading}
-      onConfirm={handleConfirm}
-      onCancel={handleCancel}
-    />
-  ) : null
+  // フルスクリーンエディタモーダル
+  const renderEditor = () => {
+    if (!editorOpen || !preview) return null
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
+        {/* 画像がフルスクリーンで表示 */}
+        <div
+          ref={containerRef}
+          className="absolute inset-0 cursor-grab active:cursor-grabbing select-none"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={preview}
+            alt="編集中"
+            draggable={false}
+            style={buildImageStyle(position, scale)}
+          />
+        </div>
 
-  // ==================== OVERLAY ====================
+        {/* 正方形の枠オーバーレイ（実際の表示領域） */}
+        <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+          {/* 枠のサイズ: 画面短辺の80% */}
+          <div
+            className="relative"
+            style={{
+              width: 'min(80vw, 80vh)',
+              height: 'min(80vw, 80vh)',
+            }}
+          >
+            {/* 外側のマスク：上 */}
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-screen h-screen bg-black opacity-60" />
+            {/* 外側のマスク：下 */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 w-screen h-screen bg-black opacity-60" />
+            {/* 外側のマスク：左 */}
+            <div className="absolute right-full top-0 h-full w-screen bg-black opacity-60" />
+            {/* 外側のマスク：右 */}
+            <div className="absolute left-full top-0 h-full w-screen bg-black opacity-60" />
+            {/* 枠線 */}
+            <div className="absolute inset-0 border-4 border-white" />
+            {/* 枠上の説明文 */}
+            <div className="absolute bottom-full left-0 right-0 text-center pb-2">
+              <span className="text-white text-sm font-medium drop-shadow">ズーム・移動できます</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ボタン（確定・キャンセル） */}
+        <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-8 pointer-events-auto">
+          <button
+            onClick={handleCancel}
+            className="w-14 h-14 rounded-full bg-gray-800 text-white text-2xl flex items-center justify-center hover:bg-gray-700"
+          >
+            ✕
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={uploading}
+            className="w-14 h-14 rounded-full bg-orange-500 text-white text-2xl flex items-center justify-center hover:bg-orange-600 disabled:opacity-50"
+          >
+            {uploading ? '…' : '✓'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="absolute top-8 left-4 right-4 bg-red-600 text-white text-sm text-center py-2 px-4 rounded-lg">
+            {error}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // overlay バリアント（詳細ページのヒーロー画像など）
   if (variant === 'overlay') {
     return (
       <>
-        <div className="relative w-full h-full overflow-hidden bg-[#1a1a2e]">
+        <div className="relative w-full h-full">
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={preview}
               alt={label}
               draggable={false}
-              style={buildImageStyle(initPos.x, initPos.y, initScale)}
+              style={buildImageStyle(currentPosition, currentScale)}
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-gray-500 text-sm">画像準備中</span>
+            <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+              <span className="text-gray-400 text-sm">画像準備中</span>
             </div>
           )}
-          <div className="absolute bottom-3 right-3 z-10">
-            {fileInput}
-            <ImageButtons uploading={uploading} hasPreview={!!preview} onSelectFile={openFileSelector} onAdjust={() => setShowEditor(true)} />
+          <div className="absolute bottom-3 left-3">
+            {renderButtons(true)}
           </div>
           {error && (
-            <div className="absolute top-2 left-2 right-2 bg-red-900 bg-opacity-80 text-red-200 text-xs p-2 rounded z-10">
+            <div className="absolute bottom-14 left-2 right-2 bg-red-600 text-white text-xs p-2 rounded">
               {error}
             </div>
           )}
         </div>
-        {modal}
+        {renderEditor()}
       </>
     )
   }
 
-  // ==================== COMPACT / DEFAULT ====================
+  // compact / default バリアント（ランディングページのカードなど）
   return (
     <>
-      <div className={variant === 'compact' ? '' : 'space-y-2'}>
+      <div className={variant === 'compact' ? 'flex flex-col gap-1' : 'space-y-2'}>
         {variant === 'default' && (
           <label className="block text-sm font-medium text-gray-700">{label}</label>
         )}
-        <div className={`flex ${variant === 'compact' ? 'flex-col gap-2' : 'flex-col gap-3'} items-start`}>
-          <div className={`relative overflow-hidden rounded-lg bg-gray-200 ${variant === 'compact' ? 'w-20 h-20' : 'w-32 h-32'}`}>
-            {preview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={preview}
-                alt={label}
-                draggable={false}
-                style={buildImageStyle(initPos.x, initPos.y, initScale)}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="text-gray-500 text-xs text-center px-2">準備中</span>
-              </div>
-            )}
-          </div>
-          {fileInput}
-          <ImageButtons uploading={uploading} hasPreview={!!preview} compact={variant === 'compact'} onSelectFile={openFileSelector} onAdjust={() => setShowEditor(true)} />
-          {error && <p className="text-xs text-red-600">{error}</p>}
-          {variant === 'default' && <p className="text-xs text-gray-500">JPEG・PNG・WebP / 最大5MB</p>}
+        <div className={variant === 'compact' ? 'w-20 h-20 relative bg-gray-200 rounded overflow-hidden' : 'w-32 h-32 relative bg-gray-200 rounded-lg overflow-hidden'}>
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={preview}
+              alt={label}
+              draggable={false}
+              style={buildImageStyle(currentPosition, currentScale)}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <span className="text-gray-500 text-xs">準備中</span>
+            </div>
+          )}
         </div>
+        {renderButtons(false)}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {variant === 'default' && (
+          <p className="text-xs text-gray-500">JPEG、PNG、WebP形式 / 最大5MB</p>
+        )}
       </div>
-      {modal}
+      {renderEditor()}
     </>
   )
 }

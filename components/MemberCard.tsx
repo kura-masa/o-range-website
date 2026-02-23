@@ -4,13 +4,6 @@ import { Member } from '@/lib/data'
 import { useRouter } from 'next/navigation'
 import ImageUploader, { buildImageStyle } from './ImageUploader'
 
-function getImageStyle(position?: string, scale?: number): React.CSSProperties {
-  const parts = (position || '50% 50%').split(' ')
-  const x = parseFloat(parts[0]); const px = isNaN(x) ? 50 : x
-  const y = parseFloat(parts[1]); const py = isNaN(y) ? 50 : y
-  return buildImageStyle(px, py, scale ?? 1)
-}
-
 interface MemberCardProps {
   member: Member
   isEditing: boolean
@@ -71,7 +64,7 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
               src={member.imageNo1}
               alt={member.name}
               draggable={false}
-              style={getImageStyle(member.imageNo1Position, member.imageNo1Scale)}
+              style={buildImageStyle(member.imageNo1Position, member.imageNo1Scale)}
             />
           </div>
         ) : (

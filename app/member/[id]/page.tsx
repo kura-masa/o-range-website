@@ -14,13 +14,6 @@ import { getMember, saveMember } from '@/lib/firestore'
 import SaveButtons from '@/components/SaveButtons'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
 
-function getImageStyle(position?: string, scale?: number): React.CSSProperties {
-  const parts = (position || '50% 50%').split(' ')
-  const x = parseFloat(parts[0]); const px = isNaN(x) ? 50 : x
-  const y = parseFloat(parts[1]); const py = isNaN(y) ? 50 : y
-  return buildImageStyle(px, py, scale ?? 1)
-}
-
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -127,7 +120,7 @@ export default function MemberDetailPage() {
               src={member.imageNo2}
               alt={member.name}
               draggable={false}
-              style={getImageStyle(member.imageNo2Position, member.imageNo2Scale)}
+              style={buildImageStyle(member.imageNo2Position, member.imageNo2Scale)}
             />
           </div>
         ) : (
