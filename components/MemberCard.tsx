@@ -5,6 +5,17 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import ImageUploader from './ImageUploader'
 
+// position ("50% 30%") と scale からCSSのtransform文字列を生成
+function buildTransform(position?: string, scale?: number): string {
+  const s = scale ?? 1
+  const parts = (position || '50% 50%').split(' ')
+  const x = parseFloat(parts[0]) || 50
+  const y = parseFloat(parts[1]) || 50
+  const tx = ((50 - x) * (s - 1) / s).toFixed(2)
+  const ty = ((50 - y) * (s - 1) / s).toFixed(2)
+  return `scale(${s}) translate(${tx}%, ${ty}%)`
+}
+
 interface MemberCardProps {
   member: Member
   isEditing: boolean
@@ -49,21 +60,29 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
           <ImageUploader
             currentImage={member.imageNo1}
             currentPosition={member.imageNo1Position}
+            currentScale={member.imageNo1Scale}
             memberId={member.id}
             imageType="no1"
             label="プロフィール画像"
             variant="overlay"
             onUploadSuccess={(url) => onUpdate(member.id, 'imageNo1', url)}
             onPositionChange={(pos) => onUpdate(member.id, 'imageNo1Position', pos)}
+            onScaleChange={(s) => onUpdate(member.id, 'imageNo1Scale', String(s))}
           />
         ) : member.imageNo1 ? (
-          <Image
-            src={member.imageNo1}
-            alt={member.name}
-            fill
-            className="object-cover"
-            style={{ objectPosition: member.imageNo1Position || '50% 50%' }}
-          />
+          <div className="absolute inset-0 overflow-hidden">
+            <div
+              className="absolute inset-0 origin-center"
+              style={{ transform: buildTransform(member.imageNo1Position, member.imageNo1Scale) }}
+            >
+              <Image
+                src={member.imageNo1}
+                alt={member.name}
+                fill
+                className="object-cover"
+              />
+            </div>
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <span className="text-gray-500 text-sm">画像準備中</span>

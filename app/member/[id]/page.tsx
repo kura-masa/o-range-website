@@ -15,6 +15,17 @@ import SaveButtons from '@/components/SaveButtons'
 import ImageUploader from '@/components/ImageUploader'
 import Image from 'next/image'
 
+// position ("50% 30%") と scale からCSSのtransform文字列を生成
+function buildTransform(position?: string, scale?: number): string {
+  const s = scale ?? 1
+  const parts = (position || '50% 50%').split(' ')
+  const x = parseFloat(parts[0]) || 50
+  const y = parseFloat(parts[1]) || 50
+  const tx = ((50 - x) * (s - 1) / s).toFixed(2)
+  const ty = ((50 - y) * (s - 1) / s).toFixed(2)
+  return `scale(${s}) translate(${tx}%, ${ty}%)`
+}
+
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -64,7 +75,7 @@ export default function MemberDetailPage() {
     disableEditMode()
   }
 
-  const handleUpdate = (field: keyof Member, value: string) => {
+  const handleUpdate = (field: keyof Member, value: string | number) => {
     if (member) {
       setMember({ ...member, [field]: value })
       setHasUnsavedChanges(true)
@@ -104,23 +115,31 @@ export default function MemberDetailPage() {
             <ImageUploader
               currentImage={member.imageNo2}
               currentPosition={member.imageNo2Position}
+              currentScale={member.imageNo2Scale}
               memberId={member.id}
               imageType="no2"
               onUploadSuccess={(url) => handleUpdate('imageNo2', url)}
               onPositionChange={(pos) => handleUpdate('imageNo2Position', pos)}
+              onScaleChange={(s) => handleUpdate('imageNo2Scale', s)}
               label="プロフィール画像"
               variant="overlay"
             />
           </div>
         ) : member.imageNo2 ? (
-          <Image
-            src={member.imageNo2}
-            alt={member.name}
-            fill
-            className="object-cover"
-            style={{ objectPosition: member.imageNo2Position || '50% 20%' }}
-            priority
-          />
+          <div className="absolute inset-0 overflow-hidden">
+            <div
+              className="absolute inset-0 origin-center"
+              style={{ transform: buildTransform(member.imageNo2Position, member.imageNo2Scale) }}
+            >
+              <Image
+                src={member.imageNo2}
+                alt={member.name}
+                fill
+                className="object-cover"
+                priority
+              />
+            </div>
+          </div>
         ) : (
           <div
             className="w-full flex items-center justify-center bg-[#1a1a2e]"

@@ -5,8 +5,10 @@ export interface Member {
   tagline: string
   imageNo1?: string
   imageNo2?: string
-  imageNo1Position?: string // CSS object-position 例: "50% 30%"
-  imageNo2Position?: string // CSS object-position 例: "50% 30%"
+  imageNo1Position?: string // 画像中心位置 例: "50% 30%"
+  imageNo2Position?: string // 画像中心位置 例: "50% 30%"
+  imageNo1Scale?: number    // ズーム倍率 例: 1.5
+  imageNo2Scale?: number    // ズーム倍率 例: 1.5
   birthDate?: string
   hometown?: string
   hobbies?: string

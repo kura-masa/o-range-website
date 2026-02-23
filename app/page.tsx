@@ -60,8 +60,13 @@ export default function Home() {
     }
   }
 
-  const handleUpdateMember = (id: string, field: keyof Member, value: string) => {
-    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)))
+  const handleUpdateMember = (id: string, field: keyof Member, value: string | number) => {
+    // Scale フィールドは number で保持
+    const coerced: string | number =
+      (field === 'imageNo1Scale' || field === 'imageNo2Scale') && typeof value === 'string'
+        ? parseFloat(value)
+        : value
+    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, [field]: coerced } : m)))
     setHasUnsavedChanges(true)
   }
 
