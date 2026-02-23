@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { uploadMemberImage, validateImageFile } from '@/lib/storage'
-import Image from 'next/image'
 
 interface ImageUploaderProps {
   currentImage?: string
@@ -28,16 +27,19 @@ function parsePosition(pos?: string): { x: number; y: number } {
 
 /**
  * 表示用 transform を生成する。
- * コンテナに対して object-cover 相当を scale で実現し、
- * 中心を (x%, y%) にずらす。
  *
- * translate の単位は「コンテナに対する %」ではなく
- * transform-origin: center center のときの画像自身の % なので
- * (50 - x) / scale が正しいオフセット。
+ * 考え方：
+ *   - scale(s) で画像を拡大縮小（原点は中心）
+ *   - translate で「どの部分を中央に持ってくるか」を指定
+ *   - x=50, y=50 → 中央（移動なし）
+ *   - x=70（右寄り）→ 画像を右方向にオフセット → translateX は正
+ *
+ * translate の % は scale 後の画像サイズ基準なので scale で割る必要はない。
+ * transform: scale(s) translate(tx%, ty%) の順番で適用。
  */
 export function buildTransform(x: number, y: number, scale: number): string {
-  const tx = ((50 - x) / scale).toFixed(3)
-  const ty = ((50 - y) / scale).toFixed(3)
+  const tx = (x - 50).toFixed(3)
+  const ty = (y - 50).toFixed(3)
   return `scale(${scale}) translate(${tx}%, ${ty}%)`
 }
 
@@ -78,15 +80,19 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
     }
   }, [])
 
-  // ドラッグ中（右に動かす → x が増える → 画像が右に寄る）
+  // ドラッグ中
+  // 右にドラッグ → dx > 0 → x が増える → 画像が右にずれる → buildTransform の tx が増えて画像が右へ
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!dragStartRef.current || !containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
     const dx = e.clientX - dragStartRef.current.mouseX
     const dy = e.clientY - dragStartRef.current.mouseY
+    // スクリーン上のピクセル移動を position(%) に変換
+    // scale が大きいほど画像の見かけが大きいので、感度を scale で割って調整
+    const sensitivity = 100 / scaleRef.current
     setPosition({
-      x: Math.min(100, Math.max(0, dragStartRef.current.posX + (dx / rect.width) * 100)),
-      y: Math.min(100, Math.max(0, dragStartRef.current.posY + (dy / rect.height) * 100)),
+      x: Math.min(100, Math.max(0, dragStartRef.current.posX + (dx / rect.width) * sensitivity)),
+      y: Math.min(100, Math.max(0, dragStartRef.current.posY + (dy / rect.height) * sensitivity)),
     })
   }, [])
 
@@ -102,7 +108,7 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
     setScale(prev => Math.min(4, Math.max(0.5, +(prev + delta).toFixed(2))))
   }, [])
 
-  // タッチ
+  // タッチ開始
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       const t = e.touches[0]
@@ -126,9 +132,11 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
     }
   }, [])
 
+  // タッチ移動
   const handleTouchMove = useCallback((e: TouchEvent) => {
     e.preventDefault()
     if (e.touches.length === 2) {
+      // ピンチズーム
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
@@ -142,9 +150,10 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
       const rect = containerRef.current.getBoundingClientRect()
       const dx = t.clientX - dragStartRef.current.mouseX
       const dy = t.clientY - dragStartRef.current.mouseY
+      const sensitivity = 100 / scaleRef.current
       setPosition({
-        x: Math.min(100, Math.max(0, dragStartRef.current.posX + (dx / rect.width) * 100)),
-        y: Math.min(100, Math.max(0, dragStartRef.current.posY + (dy / rect.height) * 100)),
+        x: Math.min(100, Math.max(0, dragStartRef.current.posX + (dx / rect.width) * sensitivity)),
+        y: Math.min(100, Math.max(0, dragStartRef.current.posY + (dy / rect.height) * sensitivity)),
       })
     }
   }, [])
@@ -155,7 +164,7 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
     lastPinchDistRef.current = null
   }, [])
 
-  // グローバルイベント
+  // グローバルイベント登録
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
@@ -252,23 +261,23 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
       </div>
 
       {/* ✕ / ✓ ボタン */}
-      <div className="absolute bottom-8 inset-x-0 flex items-center justify-center gap-12 pointer-events-none">
+      <div className="absolute bottom-8 inset-x-0 flex items-center justify-center gap-12">
         <button
           onClick={onCancel}
           disabled={uploading}
-          className="w-14 h-14 flex items-center justify-center rounded-full bg-gray-700 bg-opacity-90 text-white text-2xl hover:bg-gray-600 disabled:opacity-50 transition-colors shadow-lg pointer-events-auto"
+          className="w-14 h-14 flex items-center justify-center rounded-full bg-gray-700 bg-opacity-90 text-white text-2xl hover:bg-gray-600 disabled:opacity-50 transition-colors shadow-lg"
         >
           ✕
         </button>
 
         {uploading && (
-          <span className="text-white text-sm pointer-events-none">アップロード中...</span>
+          <span className="text-white text-sm">アップロード中...</span>
         )}
 
         <button
           onClick={() => onConfirm(position, scale)}
           disabled={uploading}
-          className="w-14 h-14 flex items-center justify-center rounded-full bg-orange-500 bg-opacity-90 text-white text-2xl hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-lg pointer-events-auto"
+          className="w-14 h-14 flex items-center justify-center rounded-full bg-orange-500 bg-opacity-90 text-white text-2xl hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-lg"
         >
           ✓
         </button>
@@ -357,7 +366,7 @@ export default function ImageUploader({
   }
 
   const handleConfirm = async (pos: { x: number; y: number }, sc: number) => {
-    const posStr = `${Math.round(pos.x)}% ${Math.round(pos.y)}%`
+    const posStr = `${pos.x.toFixed(1)}% ${pos.y.toFixed(1)}%`
     if (!pendingFile) {
       // 位置・ズームのみ変更
       onPositionChange?.(posStr)
@@ -420,16 +429,22 @@ export default function ImageUploader({
   if (variant === 'overlay') {
     return (
       <>
-        <div className="relative w-full h-full overflow-hidden">
+        <div className="relative w-full h-full overflow-hidden bg-[#1a1a2e]">
           {preview ? (
             <div
               className="absolute inset-0 origin-center"
               style={{ transform: buildTransform(initPos.x, initPos.y, initScale) }}
             >
-              <Image src={preview} alt={label} fill className="object-cover" priority draggable={false} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={preview}
+                alt={label}
+                className="absolute inset-0 w-full h-full object-cover"
+                draggable={false}
+              />
             </div>
           ) : (
-            <div className="absolute inset-0 bg-[#1a1a2e] flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center">
               <span className="text-gray-500 text-sm">画像準備中</span>
             </div>
           )}
@@ -476,12 +491,12 @@ export default function ImageUploader({
                 className="absolute inset-0 origin-center"
                 style={{ transform: buildTransform(initPos.x, initPos.y, initScale) }}
               >
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={preview}
                   alt={label}
-                  width={size}
-                  height={size}
-                  className="w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ width: size, height: size }}
                   draggable={false}
                 />
               </div>

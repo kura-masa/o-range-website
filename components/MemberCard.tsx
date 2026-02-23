@@ -7,9 +7,11 @@ import ImageUploader, { buildTransform as _buildTransform } from './ImageUploade
 
 function buildTransform(position?: string, scale?: number): string {
   const parts = (position || '50% 50%').split(' ')
-  const x = parseFloat(parts[0]) || 50
-  const y = parseFloat(parts[1]) || 50
-  return _buildTransform(x, y, scale ?? 1)
+  const x = parseFloat(parts[0])
+  const y = parseFloat(parts[1])
+  const px = isNaN(x) ? 50 : x
+  const py = isNaN(y) ? 50 : y
+  return _buildTransform(px, py, scale ?? 1)
 }
 
 interface MemberCardProps {
