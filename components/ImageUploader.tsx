@@ -176,62 +176,96 @@ function EditorModal({ src, initialPosition, initialScale, uploading, onConfirm,
 
   const transform = buildTransform(position.x, position.y, scale)
 
+  // 枠サイズ: 画面短辺の80%
+  const frameSize = 'min(80vw, 80vh)'
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
-
-      {/* 枠外ラベル */}
-      <p className="text-white text-sm mb-3 select-none opacity-80">
-        ズーム・移動できます
-      </p>
-
-      {/* 正方形の太枠（実際の表示領域）*/}
-      {/* 画面の短辺の80%を枠サイズとする */}
+    <div
+      ref={frameRef}
+      className="fixed inset-0 z-50 overflow-hidden"
+      style={{
+        cursor: isDragging ? 'grabbing' : 'grab',
+        touchAction: 'none',
+        background: 'black',
+      }}
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
+    >
+      {/* フルスクリーンの画像（背景として全体に広がる） */}
       <div
-        ref={frameRef}
-        className="relative overflow-hidden"
-        style={{
-          width: 'min(80vw, 80vh)',
-          height: 'min(80vw, 80vh)',
-          border: '4px solid white',
-          cursor: isDragging ? 'grabbing' : 'grab',
-          touchAction: 'none',
-          background: 'black',
-        }}
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
+        className="absolute inset-0 origin-center select-none"
+        style={{ transform }}
       >
-        <div
-          className="absolute inset-0 origin-center select-none"
-          style={{ transform }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src}
-            alt="編集中"
-            className="absolute inset-0 w-full h-full object-cover"
-            draggable={false}
-          />
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt="編集中"
+          className="absolute inset-0 w-full h-full object-cover"
+          draggable={false}
+        />
       </div>
 
-      {/* ボタン */}
-      <div className="flex items-center gap-8 mt-6">
+      {/* 暗いマスク（枠の外を暗くする） */}
+      {/* 上 */}
+      <div className="absolute inset-x-0 top-0 bg-black bg-opacity-60 pointer-events-none"
+        style={{ height: `calc((100% - ${frameSize}) / 2)` }} />
+      {/* 下 */}
+      <div className="absolute inset-x-0 bottom-0 bg-black bg-opacity-60 pointer-events-none"
+        style={{ height: `calc((100% - ${frameSize}) / 2)` }} />
+      {/* 左 */}
+      <div className="absolute inset-y-0 left-0 bg-black bg-opacity-60 pointer-events-none"
+        style={{ width: `calc((100% - ${frameSize}) / 2)` }} />
+      {/* 右 */}
+      <div className="absolute inset-y-0 right-0 bg-black bg-opacity-60 pointer-events-none"
+        style={{ width: `calc((100% - ${frameSize}) / 2)` }} />
+
+      {/* 正方形の太枠（実際の表示範囲を示す） */}
+      <div
+        className="absolute pointer-events-none"
+        style={{
+          width: frameSize,
+          height: frameSize,
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          border: '3px solid white',
+          boxShadow: '0 0 0 1px rgba(255,255,255,0.3)',
+        }}
+      />
+
+      {/* 枠の上のラベル */}
+      <div
+        className="absolute pointer-events-none flex justify-center"
+        style={{
+          width: frameSize,
+          top: `calc(50% - ${frameSize} / 2 - 28px)`,
+          left: '50%',
+          transform: 'translateX(-50%)',
+        }}
+      >
+        <span className="text-white text-xs select-none opacity-80 bg-black bg-opacity-40 px-2 py-0.5 rounded">
+          ズーム・移動できます
+        </span>
+      </div>
+
+      {/* ✕ / ✓ ボタン */}
+      <div className="absolute bottom-8 inset-x-0 flex items-center justify-center gap-12 pointer-events-none">
         <button
           onClick={onCancel}
           disabled={uploading}
-          className="w-14 h-14 flex items-center justify-center rounded-full bg-gray-700 text-white text-2xl hover:bg-gray-600 disabled:opacity-50 transition-colors"
+          className="w-14 h-14 flex items-center justify-center rounded-full bg-gray-700 bg-opacity-90 text-white text-2xl hover:bg-gray-600 disabled:opacity-50 transition-colors shadow-lg pointer-events-auto"
         >
           ✕
         </button>
 
         {uploading && (
-          <span className="text-white text-sm">アップロード中...</span>
+          <span className="text-white text-sm pointer-events-none">アップロード中...</span>
         )}
 
         <button
           onClick={() => onConfirm(position, scale)}
           disabled={uploading}
-          className="w-14 h-14 flex items-center justify-center rounded-full bg-orange-500 text-white text-2xl hover:bg-orange-600 disabled:opacity-50 transition-colors"
+          className="w-14 h-14 flex items-center justify-center rounded-full bg-orange-500 bg-opacity-90 text-white text-2xl hover:bg-orange-600 disabled:opacity-50 transition-colors shadow-lg pointer-events-auto"
         >
           ✓
         </button>
