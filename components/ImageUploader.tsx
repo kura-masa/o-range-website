@@ -62,6 +62,10 @@ export default function ImageUploader({
   // ピンチ用ref
   const lastPinchDist = useRef<number | null>(null)
 
+  // scaleの最新値をuseEffect内から参照するためのref
+  const scaleRef = useRef(scale)
+  useEffect(() => { scaleRef.current = scale }, [scale])
+
   const containerRef = useRef<HTMLDivElement>(null)
 
   // position文字列をxとyに分解
@@ -108,43 +112,76 @@ export default function ImageUploader({
     dragging.current = false
   }, [])
 
-  // ピンチ
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
-      lastPinchDist.current = Math.sqrt(dx * dx + dy * dy)
-    }
-  }, [])
-
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2 && lastPinchDist.current !== null) {
-      e.preventDefault()
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      const ratio = dist / lastPinchDist.current
-      setScale(prev => Math.min(4, Math.max(0.5, prev * ratio)))
-      lastPinchDist.current = dist
-    }
-  }, [])
-
-  const onTouchEnd = useCallback(() => {
-    lastPinchDist.current = null
-  }, [])
-
-  // ホイールズーム
+  // タッチ・ホイールイベントをuseEffectで登録（passive: false必須）
   useEffect(() => {
     if (!editorOpen) return
     const el = containerRef.current
     if (!el) return
+
+    const handleTouchStart = (e: TouchEvent) => {
+      // 1本指・2本指どちらもページスクロールを禁止
+      e.preventDefault()
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        lastPinchDist.current = Math.sqrt(dx * dx + dy * dy)
+      } else if (e.touches.length === 1) {
+        dragging.current = true
+        lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      if (e.touches.length === 2 && lastPinchDist.current !== null) {
+        // ピンチズーム
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        const ratio = dist / lastPinchDist.current
+        setScale(prev => Math.min(4, Math.max(0.5, prev * ratio)))
+        lastPinchDist.current = dist
+      } else if (e.touches.length === 1 && dragging.current) {
+        // 1本指ドラッグ
+        const rect = el.getBoundingClientRect()
+        const dx = e.touches[0].clientX - lastPointer.current.x
+        const dy = e.touches[0].clientY - lastPointer.current.y
+        lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        setPosition(prev => {
+          const parts = prev.split(' ')
+          const x = parseFloat(parts[0]) || 50
+          const y = parseFloat(parts[1]) || 50
+          const currentScale = scaleRef.current
+          const sensitivity = 100 / currentScale
+          const nx = Math.min(100, Math.max(0, x + (dx / rect.width) * sensitivity))
+          const ny = Math.min(100, Math.max(0, y + (dy / rect.height) * sensitivity))
+          return `${nx.toFixed(2)}% ${ny.toFixed(2)}%`
+        })
+      }
+    }
+
+    const handleTouchEnd = () => {
+      dragging.current = false
+      lastPinchDist.current = null
+    }
+
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       const delta = e.deltaY > 0 ? 0.95 : 1.05
       setScale(prev => Math.min(4, Math.max(0.5, prev * delta)))
     }
+
+    el.addEventListener('touchstart', handleTouchStart, { passive: false })
+    el.addEventListener('touchmove', handleTouchMove, { passive: false })
+    el.addEventListener('touchend', handleTouchEnd, { passive: false })
     el.addEventListener('wheel', handleWheel, { passive: false })
-    return () => el.removeEventListener('wheel', handleWheel)
+
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart)
+      el.removeEventListener('touchmove', handleTouchMove)
+      el.removeEventListener('touchend', handleTouchEnd)
+      el.removeEventListener('wheel', handleWheel)
+    }
   }, [editorOpen])
 
   // ファイル選択
@@ -261,9 +298,6 @@ export default function ImageUploader({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
