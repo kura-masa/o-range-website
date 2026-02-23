@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { uploadMemberImage, validateImageFile } from '@/lib/storage'
 
 interface ImageUploaderProps {
   currentImage?: string
-  currentPosition?: string  // "60% 30%"
-  currentScale?: number     // 1.5
+  currentPosition?: string
+  currentScale?: number
   memberId: string
   imageType: 'no1' | 'no2'
   onUploadSuccess: (url: string) => void
@@ -16,7 +16,6 @@ interface ImageUploaderProps {
   variant?: 'default' | 'compact' | 'overlay'
 }
 
-// 表示側で使う共通スタイル生成関数
 export function buildImageStyle(
   position: string = '50% 50%',
   scale: number = 1
@@ -47,91 +46,75 @@ export default function ImageUploader({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [pendingFile, setPendingFile] = useState<File | null>(null)
-
-  // エディタモーダルの状態
   const [editorOpen, setEditorOpen] = useState(false)
   const [position, setPosition] = useState(currentPosition)
   const [scale, setScale] = useState(currentScale)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // ドラッグ用ref
-  const dragging = useRef(false)
-  const lastPointer = useRef({ x: 0, y: 0 })
-
-  // ピンチ用ref
-  const lastPinchDist = useRef<number | null>(null)
-
-  // scaleの最新値をuseEffect内から参照するためのref
-  const scaleRef = useRef(scale)
-  useEffect(() => { scaleRef.current = scale }, [scale])
-
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // position文字列をxとyに分解
-  const parsePos = (pos: string) => {
-    const parts = pos.split(' ')
-    return {
-      x: parseFloat(parts[0]) || 50,
-      y: parseFloat(parts[1]) || 50,
-    }
-  }
+  // refで最新値を保持（useEffect内から参照するため）
+  const positionRef = useRef(position)
+  const scaleRef = useRef(scale)
+  useEffect(() => { positionRef.current = position }, [position])
+  useEffect(() => { scaleRef.current = scale }, [scale])
 
-  // ドラッグ開始
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return
-    dragging.current = true
-    lastPointer.current = { x: e.clientX, y: e.clientY }
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }, [])
+  // ドラッグ・ピンチ用ref
+  const dragging = useRef(false)
+  const lastPointer = useRef({ x: 0, y: 0 })
+  const lastPinchDist = useRef<number | null>(null)
 
-  // ドラッグ中：ポインター移動量をobject-positionに反映
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragging.current) return
-    const container = containerRef.current
-    if (!container) return
-
-    const rect = container.getBoundingClientRect()
-    const dx = e.clientX - lastPointer.current.x
-    const dy = e.clientY - lastPointer.current.y
-    lastPointer.current = { x: e.clientX, y: e.clientY }
-
-    // ピクセル移動量をパーセントに変換（スケール考慮）
-    // 右にドラッグ→画像の見える部分が右へ→object-position x が増える
-    setPosition(prev => {
-      const { x, y } = parsePos(prev)
-      // 移動量を感度調整（スケールが大きいほど細かく動く）
-      const sensitivity = 100 / scale
-      const nx = Math.min(100, Math.max(0, x + (dx / rect.width) * sensitivity))
-      const ny = Math.min(100, Math.max(0, y + (dy / rect.height) * sensitivity))
-      return `${nx.toFixed(2)}% ${ny.toFixed(2)}%`
-    })
-  }, [scale])
-
-  const onPointerUp = useCallback(() => {
-    dragging.current = false
-  }, [])
-
-  // タッチ・ホイールイベントをuseEffectで登録（passive: false必須）
+  // 全てのインタラクションをuseEffectで管理（passive:false必須）
   useEffect(() => {
     if (!editorOpen) return
     const el = containerRef.current
     if (!el) return
 
-    const handleTouchStart = (e: TouchEvent) => {
-      // 1本指・2本指どちらもページスクロールを禁止
+    // --- マウスイベント ---
+    const onMouseDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest('button')) return
+      e.preventDefault()
+      dragging.current = true
+      lastPointer.current = { x: e.clientX, y: e.clientY }
+    }
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging.current) return
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const dx = e.clientX - lastPointer.current.x
+      const dy = e.clientY - lastPointer.current.y
+      lastPointer.current = { x: e.clientX, y: e.clientY }
+      const s = scaleRef.current
+      const parts = positionRef.current.split(' ')
+      const x = parseFloat(parts[0]) || 50
+      const y = parseFloat(parts[1]) || 50
+      const sensitivity = 100 / s
+      const nx = Math.min(100, Math.max(0, x + (dx / rect.width) * sensitivity))
+      const ny = Math.min(100, Math.max(0, y + (dy / rect.height) * sensitivity))
+      const newPos = `${nx.toFixed(2)}% ${ny.toFixed(2)}%`
+      positionRef.current = newPos
+      setPosition(newPos)
+    }
+
+    const onMouseUp = () => { dragging.current = false }
+
+    // --- タッチイベント ---
+    const onTouchStart = (e: TouchEvent) => {
       e.preventDefault()
       if (e.touches.length === 2) {
+        dragging.current = false
         const dx = e.touches[0].clientX - e.touches[1].clientX
         const dy = e.touches[0].clientY - e.touches[1].clientY
         lastPinchDist.current = Math.sqrt(dx * dx + dy * dy)
       } else if (e.touches.length === 1) {
+        lastPinchDist.current = null
         dragging.current = true
         lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       }
     }
 
-    const handleTouchMove = (e: TouchEvent) => {
+    const onTouchMove = (e: TouchEvent) => {
       e.preventDefault()
       if (e.touches.length === 2 && lastPinchDist.current !== null) {
         // ピンチズーム
@@ -139,52 +122,62 @@ export default function ImageUploader({
         const dy = e.touches[0].clientY - e.touches[1].clientY
         const dist = Math.sqrt(dx * dx + dy * dy)
         const ratio = dist / lastPinchDist.current
-        setScale(prev => Math.min(4, Math.max(0.5, prev * ratio)))
         lastPinchDist.current = dist
+        const newScale = Math.min(4, Math.max(0.5, scaleRef.current * ratio))
+        scaleRef.current = newScale
+        setScale(newScale)
       } else if (e.touches.length === 1 && dragging.current) {
         // 1本指ドラッグ
         const rect = el.getBoundingClientRect()
         const dx = e.touches[0].clientX - lastPointer.current.x
         const dy = e.touches[0].clientY - lastPointer.current.y
         lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-        setPosition(prev => {
-          const parts = prev.split(' ')
-          const x = parseFloat(parts[0]) || 50
-          const y = parseFloat(parts[1]) || 50
-          const currentScale = scaleRef.current
-          const sensitivity = 100 / currentScale
-          const nx = Math.min(100, Math.max(0, x + (dx / rect.width) * sensitivity))
-          const ny = Math.min(100, Math.max(0, y + (dy / rect.height) * sensitivity))
-          return `${nx.toFixed(2)}% ${ny.toFixed(2)}%`
-        })
+        const s = scaleRef.current
+        const parts = positionRef.current.split(' ')
+        const x = parseFloat(parts[0]) || 50
+        const y = parseFloat(parts[1]) || 50
+        const sensitivity = 100 / s
+        const nx = Math.min(100, Math.max(0, x + (dx / rect.width) * sensitivity))
+        const ny = Math.min(100, Math.max(0, y + (dy / rect.height) * sensitivity))
+        const newPos = `${nx.toFixed(2)}% ${ny.toFixed(2)}%`
+        positionRef.current = newPos
+        setPosition(newPos)
       }
     }
 
-    const handleTouchEnd = () => {
+    const onTouchEnd = () => {
       dragging.current = false
       lastPinchDist.current = null
     }
 
-    const handleWheel = (e: WheelEvent) => {
+    // --- ホイール ---
+    const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const delta = e.deltaY > 0 ? 0.95 : 1.05
-      setScale(prev => Math.min(4, Math.max(0.5, prev * delta)))
+      const newScale = Math.min(4, Math.max(0.5, scaleRef.current * delta))
+      scaleRef.current = newScale
+      setScale(newScale)
     }
 
-    el.addEventListener('touchstart', handleTouchStart, { passive: false })
-    el.addEventListener('touchmove', handleTouchMove, { passive: false })
-    el.addEventListener('touchend', handleTouchEnd, { passive: false })
-    el.addEventListener('wheel', handleWheel, { passive: false })
+    el.addEventListener('mousedown', onMouseDown)
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd, { passive: false })
+    el.addEventListener('wheel', onWheel, { passive: false })
 
     return () => {
-      el.removeEventListener('touchstart', handleTouchStart)
-      el.removeEventListener('touchmove', handleTouchMove)
-      el.removeEventListener('touchend', handleTouchEnd)
-      el.removeEventListener('wheel', handleWheel)
+      el.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('wheel', onWheel)
     }
   }, [editorOpen])
 
-  // ファイル選択
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -197,22 +190,23 @@ export default function ImageUploader({
     const objectUrl = URL.createObjectURL(file)
     setPreview(objectUrl)
     setPendingFile(file)
-    // 新しい画像のときは位置・スケールをリセット
     setPosition('50% 50%')
     setScale(1)
+    positionRef.current = '50% 50%'
+    scaleRef.current = 1
     setEditorOpen(true)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // 位置調節ボタン
   const handleOpenEditor = () => {
     if (!preview) return
     setPosition(currentPosition || '50% 50%')
     setScale(currentScale || 1)
+    positionRef.current = currentPosition || '50% 50%'
+    scaleRef.current = currentScale || 1
     setEditorOpen(true)
   }
 
-  // 確定
   const handleConfirm = async () => {
     if (pendingFile) {
       setUploading(true)
@@ -232,12 +226,11 @@ export default function ImageUploader({
         setUploading(false)
       }
     }
-    onPositionChange?.(position)
-    onScaleChange?.(scale)
+    onPositionChange?.(positionRef.current)
+    onScaleChange?.(scaleRef.current)
     setEditorOpen(false)
   }
 
-  // キャンセル
   const handleCancel = () => {
     if (pendingFile) {
       setPreview(currentImage)
@@ -249,7 +242,6 @@ export default function ImageUploader({
     setError('')
   }
 
-  // ボタンUI（横並び：「画像変更」「位置調節」）
   const renderButtons = (dark = false) => (
     <div className="flex gap-2">
       <input
@@ -262,11 +254,7 @@ export default function ImageUploader({
       <button
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading}
-        className={
-          dark
-            ? 'px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50'
-            : 'px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50'
-        }
+        className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
       >
         画像変更
       </button>
@@ -285,19 +273,14 @@ export default function ImageUploader({
     </div>
   )
 
-  // フルスクリーンエディタモーダル
   const renderEditor = () => {
     if (!editorOpen || !preview) return null
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
-        {/* 画像がフルスクリーンで表示 */}
+      <div className="fixed inset-0 z-50 bg-black">
+        {/* フルスクリーン画像 + ドラッグ領域 */}
         <div
           ref={containerRef}
           className="absolute inset-0 cursor-grab active:cursor-grabbing select-none"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -308,35 +291,31 @@ export default function ImageUploader({
           />
         </div>
 
-        {/* 正方形の枠オーバーレイ（実際の表示領域） */}
+        {/* 正方形枠オーバーレイ */}
         <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-          {/* 枠のサイズ: 画面短辺の80% */}
           <div
+            style={{ width: 'min(80vw, 80vh)', height: 'min(80vw, 80vh)' }}
             className="relative"
-            style={{
-              width: 'min(80vw, 80vh)',
-              height: 'min(80vw, 80vh)',
-            }}
           >
-            {/* 外側のマスク：上 */}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 w-screen h-screen bg-black opacity-60" />
-            {/* 外側のマスク：下 */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 w-screen h-screen bg-black opacity-60" />
-            {/* 外側のマスク：左 */}
-            <div className="absolute right-full top-0 h-full w-screen bg-black opacity-60" />
-            {/* 外側のマスク：右 */}
-            <div className="absolute left-full top-0 h-full w-screen bg-black opacity-60" />
+            {/* 上マスク */}
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-black/60" style={{ width: '200vw', height: '200vh' }} />
+            {/* 下マスク */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 bg-black/60" style={{ width: '200vw', height: '200vh' }} />
+            {/* 左マスク */}
+            <div className="absolute right-full top-0 bg-black/60" style={{ width: '200vw', height: '100%' }} />
+            {/* 右マスク */}
+            <div className="absolute left-full top-0 bg-black/60" style={{ width: '200vw', height: '100%' }} />
             {/* 枠線 */}
             <div className="absolute inset-0 border-4 border-white" />
-            {/* 枠上の説明文 */}
+            {/* 説明文 */}
             <div className="absolute bottom-full left-0 right-0 text-center pb-2">
-              <span className="text-white text-sm font-medium drop-shadow">ズーム・移動できます</span>
+              <span className="text-white text-sm font-medium">ズーム・移動できます</span>
             </div>
           </div>
         </div>
 
-        {/* ボタン（確定・キャンセル） */}
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-8 pointer-events-auto">
+        {/* ✕ 確定ボタン */}
+        <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-8 pointer-events-auto z-10">
           <button
             onClick={handleCancel}
             className="w-14 h-14 rounded-full bg-gray-800 text-white text-2xl flex items-center justify-center hover:bg-gray-700"
@@ -353,7 +332,7 @@ export default function ImageUploader({
         </div>
 
         {error && (
-          <div className="absolute top-8 left-4 right-4 bg-red-600 text-white text-sm text-center py-2 px-4 rounded-lg">
+          <div className="absolute top-8 left-4 right-4 bg-red-600 text-white text-sm text-center py-2 px-4 rounded-lg z-10">
             {error}
           </div>
         )}
@@ -361,7 +340,6 @@ export default function ImageUploader({
     )
   }
 
-  // overlay バリアント（詳細ページのヒーロー画像など）
   if (variant === 'overlay') {
     return (
       <>
@@ -393,14 +371,16 @@ export default function ImageUploader({
     )
   }
 
-  // compact / default バリアント（ランディングページのカードなど）
   return (
     <>
       <div className={variant === 'compact' ? 'flex flex-col gap-1' : 'space-y-2'}>
         {variant === 'default' && (
           <label className="block text-sm font-medium text-gray-700">{label}</label>
         )}
-        <div className={variant === 'compact' ? 'w-20 h-20 relative bg-gray-200 rounded overflow-hidden' : 'w-32 h-32 relative bg-gray-200 rounded-lg overflow-hidden'}>
+        <div className={variant === 'compact'
+          ? 'w-20 h-20 relative bg-gray-200 rounded overflow-hidden'
+          : 'w-32 h-32 relative bg-gray-200 rounded-lg overflow-hidden'
+        }>
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
