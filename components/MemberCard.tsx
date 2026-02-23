@@ -2,16 +2,13 @@
 
 import { Member } from '@/lib/data'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import ImageUploader, { buildTransform as _buildTransform } from './ImageUploader'
+import ImageUploader, { buildImageStyle } from './ImageUploader'
 
-function buildTransform(position?: string, scale?: number): string {
+function getImageStyle(position?: string, scale?: number): React.CSSProperties {
   const parts = (position || '50% 50%').split(' ')
-  const x = parseFloat(parts[0])
-  const y = parseFloat(parts[1])
-  const px = isNaN(x) ? 50 : x
-  const py = isNaN(y) ? 50 : y
-  return _buildTransform(px, py, scale ?? 1)
+  const x = parseFloat(parts[0]); const px = isNaN(x) ? 50 : x
+  const y = parseFloat(parts[1]); const py = isNaN(y) ? 50 : y
+  return buildImageStyle(px, py, scale ?? 1)
 }
 
 interface MemberCardProps {
@@ -69,17 +66,13 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
           />
         ) : member.imageNo1 ? (
           <div className="absolute inset-0 overflow-hidden">
-            <div
-              className="absolute inset-0 origin-center"
-              style={{ transform: buildTransform(member.imageNo1Position, member.imageNo1Scale) }}
-            >
-              <Image
-                src={member.imageNo1}
-                alt={member.name}
-                fill
-                className="object-cover"
-              />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={member.imageNo1}
+              alt={member.name}
+              draggable={false}
+              style={getImageStyle(member.imageNo1Position, member.imageNo1Scale)}
+            />
           </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center">

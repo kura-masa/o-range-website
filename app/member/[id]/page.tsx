@@ -12,16 +12,13 @@ import { useNotification } from '@/contexts/NotificationContext'
 import { Member } from '@/lib/data'
 import { getMember, saveMember } from '@/lib/firestore'
 import SaveButtons from '@/components/SaveButtons'
-import ImageUploader, { buildTransform as _buildTransform } from '@/components/ImageUploader'
-import Image from 'next/image'
+import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
 
-function buildTransform(position?: string, scale?: number): string {
+function getImageStyle(position?: string, scale?: number): React.CSSProperties {
   const parts = (position || '50% 50%').split(' ')
-  const x = parseFloat(parts[0])
-  const y = parseFloat(parts[1])
-  const px = isNaN(x) ? 50 : x
-  const py = isNaN(y) ? 50 : y
-  return _buildTransform(px, py, scale ?? 1)
+  const x = parseFloat(parts[0]); const px = isNaN(x) ? 50 : x
+  const y = parseFloat(parts[1]); const py = isNaN(y) ? 50 : y
+  return buildImageStyle(px, py, scale ?? 1)
 }
 
 export default function MemberDetailPage() {
@@ -125,18 +122,13 @@ export default function MemberDetailPage() {
           </div>
         ) : member.imageNo2 ? (
           <div className="absolute inset-0 overflow-hidden">
-            <div
-              className="absolute inset-0 origin-center"
-              style={{ transform: buildTransform(member.imageNo2Position, member.imageNo2Scale) }}
-            >
-              <Image
-                src={member.imageNo2}
-                alt={member.name}
-                fill
-                className="object-cover"
-                priority
-              />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={member.imageNo2}
+              alt={member.name}
+              draggable={false}
+              style={getImageStyle(member.imageNo2Position, member.imageNo2Scale)}
+            />
           </div>
         ) : (
           <div
