@@ -103,9 +103,11 @@ export default function MemberDetailPage() {
           <div className="absolute inset-0">
             <ImageUploader
               currentImage={member.imageNo2}
+              currentPosition={member.imageNo2Position}
               memberId={member.id}
               imageType="no2"
               onUploadSuccess={(url) => handleUpdate('imageNo2', url)}
+              onPositionChange={(pos) => handleUpdate('imageNo2Position', pos)}
               label="プロフィール画像"
               variant="overlay"
             />
@@ -115,7 +117,8 @@ export default function MemberDetailPage() {
             src={member.imageNo2}
             alt={member.name}
             fill
-            className="object-cover object-top"
+            className="object-cover"
+            style={{ objectPosition: member.imageNo2Position || '50% 20%' }}
             priority
           />
         ) : (

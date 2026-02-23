@@ -5,6 +5,8 @@ export interface Member {
   tagline: string
   imageNo1?: string
   imageNo2?: string
+  imageNo1Position?: string // CSS object-position 例: "50% 30%"
+  imageNo2Position?: string // CSS object-position 例: "50% 30%"
   birthDate?: string
   hometown?: string
   hobbies?: string

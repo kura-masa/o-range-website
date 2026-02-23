@@ -48,11 +48,13 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
         {isEditing ? (
           <ImageUploader
             currentImage={member.imageNo1}
+            currentPosition={member.imageNo1Position}
             memberId={member.id}
             imageType="no1"
             label="プロフィール画像"
             variant="overlay"
             onUploadSuccess={(url) => onUpdate(member.id, 'imageNo1', url)}
+            onPositionChange={(pos) => onUpdate(member.id, 'imageNo1Position', pos)}
           />
         ) : member.imageNo1 ? (
           <Image
@@ -60,6 +62,7 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
             alt={member.name}
             fill
             className="object-cover"
+            style={{ objectPosition: member.imageNo1Position || '50% 50%' }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
