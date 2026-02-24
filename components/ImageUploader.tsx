@@ -5,8 +5,8 @@ import { uploadMemberImage, validateImageFile } from '@/lib/storage'
 
 interface ImageUploaderProps {
   currentImage?: string
-  currentPosition?: string  // "x% y%" 形式（CSS object-position そのもの）
-  currentScale?: number
+  currentPosition?: string  // "cx cy" 形式: 画像の中心として表示したい点（画像の自然サイズに対する0〜1の比率）
+  currentScale?: number     // ズーム倍率
   memberId: string
   imageType: 'no1' | 'no2'
   onUploadSuccess: (url: string) => void
@@ -16,11 +16,21 @@ interface ImageUploaderProps {
   variant?: 'default' | 'compact' | 'overlay'
 }
 
-// CSS object-position + scale をそのまま適用（コンテナ非依存）
+// 正規化座標(cx, cy: 0〜1) + scale → コンテナ内でその点を中心に表示するCSSを返す
+// コンテナはoverflow:hiddenで、画像はabsolute配置
 export function buildImageStyle(
-  position: string = '50% 50%',
+  position: string = '0.5 0.5',
   scale: number = 1
 ): React.CSSProperties {
+  const parts = (position || '0.5 0.5').split(' ')
+  const cx = parseFloat(parts[0])
+  const cy = parseFloat(parts[1])
+  const safeCx = isNaN(cx) ? 0.5 : cx
+  const safeCy = isNaN(cy) ? 0.5 : cy
+
+  // 画像をコンテナ全体にobject-cover相当で表示し、
+  // cx, cy の点がコンテナ中央に来るように object-position を使う
+  // （object-fit: cover + object-position: cx*100% cy*100% はコンテナ比率非依存）
   return {
     position: 'absolute',
     top: 0,
@@ -28,9 +38,9 @@ export function buildImageStyle(
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    objectPosition: position,
+    objectPosition: `${(safeCx * 100).toFixed(2)}% ${(safeCy * 100).toFixed(2)}%`,
     transform: `scale(${scale})`,
-    transformOrigin: 'center',
+    transformOrigin: `${(safeCx * 100).toFixed(2)}% ${(safeCy * 100).toFixed(2)}%`,
     userSelect: 'none',
     pointerEvents: 'none',
   }
@@ -38,7 +48,7 @@ export function buildImageStyle(
 
 export default function ImageUploader({
   currentImage,
-  currentPosition = '50% 50%',
+  currentPosition = '0.5 0.5',
   currentScale = 1,
   memberId,
   imageType,
@@ -54,15 +64,15 @@ export default function ImageUploader({
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
 
-  // 編集中の状態（refで管理してuseEffect内から参照）
-  // x, y は object-position の値（0〜100）
-  const xRef = useRef(50)
-  const yRef = useRef(50)
+  // 編集中の状態（ref で管理して useEffect 内から参照）
+  // cx, cy: 0〜1 の正規化座標（画像の「中心として見せたい点」）
+  const cxRef = useRef(0.5)
+  const cyRef = useRef(0.5)
   const scaleRef = useRef(1)
 
-  // 表示更新用のstate
-  const [x, setX] = useState(50)
-  const [y, setY] = useState(50)
+  // 表示更新用の state
+  const [cx, setCx] = useState(0.5)
+  const [cy, setCy] = useState(0.5)
   const [scale, setScale] = useState(1)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -73,31 +83,33 @@ export default function ImageUploader({
   const lastPointer = useRef({ x: 0, y: 0 })
   const lastPinchDist = useRef<number | null>(null)
 
-  const parsePosition = useCallback((pos: string) => {
-    const parts = (pos || '50% 50%').split(' ')
+  const parsePos = useCallback((pos: string) => {
+    const parts = (pos || '0.5 0.5').split(' ')
+    const x = parseFloat(parts[0])
+    const y = parseFloat(parts[1])
     return {
-      x: parseFloat(parts[0]) ?? 50,
-      y: parseFloat(parts[1]) ?? 50,
+      cx: isNaN(x) ? 0.5 : x,
+      cy: isNaN(y) ? 0.5 : y,
     }
   }, [])
 
   const openEditor = useCallback((pos: string, s: number) => {
-    const parsed = parsePosition(pos)
-    xRef.current = parsed.x
-    yRef.current = parsed.y
+    const parsed = parsePos(pos)
+    cxRef.current = parsed.cx
+    cyRef.current = parsed.cy
     scaleRef.current = s
-    setX(parsed.x)
-    setY(parsed.y)
+    setCx(parsed.cx)
+    setCy(parsed.cy)
     setScale(s)
     setEditorOpen(true)
-  }, [parsePosition])
+  }, [parsePos])
 
   useEffect(() => {
     if (!editorOpen) return
     const el = containerRef.current
     if (!el) return
 
-    // --- マウス ---
+    // マウス
     const onMouseDown = (e: MouseEvent) => {
       if ((e.target as HTMLElement).closest('button')) return
       e.preventDefault()
@@ -112,19 +124,17 @@ export default function ImageUploader({
       const dx = e.clientX - lastPointer.current.x
       const dy = e.clientY - lastPointer.current.y
       lastPointer.current = { x: e.clientX, y: e.clientY }
-
-      // object-position では「右にドラッグ = x を減らす」
-      // 感度: scale が大きいほど細かく動かせるよう調整
-      const sensitivity = 100 / scaleRef.current
-      xRef.current = Math.min(100, Math.max(0, xRef.current - (dx / rect.width) * sensitivity))
-      yRef.current = Math.min(100, Math.max(0, yRef.current - (dy / rect.height) * sensitivity))
-      setX(xRef.current)
-      setY(yRef.current)
+      // 右にドラッグ → cx を減らす（右の内容が見えるように）
+      // scale が大きいほど細かく動く
+      cxRef.current = Math.min(1, Math.max(0, cxRef.current - (dx / rect.width) / scaleRef.current))
+      cyRef.current = Math.min(1, Math.max(0, cyRef.current - (dy / rect.height) / scaleRef.current))
+      setCx(cxRef.current)
+      setCy(cyRef.current)
     }
 
     const onMouseUp = () => { dragging.current = false }
 
-    // --- タッチ ---
+    // タッチ
     const onTouchStart = (e: TouchEvent) => {
       e.preventDefault()
       if (e.touches.length === 2) {
@@ -141,6 +151,7 @@ export default function ImageUploader({
 
     const onTouchMove = (e: TouchEvent) => {
       e.preventDefault()
+      const rect = el.getBoundingClientRect()
       if (e.touches.length === 2 && lastPinchDist.current !== null) {
         const dx = e.touches[0].clientX - e.touches[1].clientX
         const dy = e.touches[0].clientY - e.touches[1].clientY
@@ -150,15 +161,13 @@ export default function ImageUploader({
         scaleRef.current = Math.min(4, Math.max(0.5, scaleRef.current * ratio))
         setScale(scaleRef.current)
       } else if (e.touches.length === 1 && dragging.current) {
-        const rect = el.getBoundingClientRect()
         const dx = e.touches[0].clientX - lastPointer.current.x
         const dy = e.touches[0].clientY - lastPointer.current.y
         lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-        const sensitivity = 100 / scaleRef.current
-        xRef.current = Math.min(100, Math.max(0, xRef.current - (dx / rect.width) * sensitivity))
-        yRef.current = Math.min(100, Math.max(0, yRef.current - (dy / rect.height) * sensitivity))
-        setX(xRef.current)
-        setY(yRef.current)
+        cxRef.current = Math.min(1, Math.max(0, cxRef.current - (dx / rect.width) / scaleRef.current))
+        cyRef.current = Math.min(1, Math.max(0, cyRef.current - (dy / rect.height) / scaleRef.current))
+        setCx(cxRef.current)
+        setCy(cyRef.current)
       }
     }
 
@@ -167,7 +176,7 @@ export default function ImageUploader({
       lastPinchDist.current = null
     }
 
-    // --- ホイール ---
+    // ホイール
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const delta = e.deltaY > 0 ? 0.95 : 1.05
@@ -207,16 +216,16 @@ export default function ImageUploader({
     setPreview(objectUrl)
     setPendingFile(file)
     if (fileInputRef.current) fileInputRef.current.value = ''
-    openEditor('50% 50%', 1)
+    openEditor('0.5 0.5', 1)
   }
 
   const handleOpenEditor = () => {
     if (!preview) return
-    openEditor(currentPosition || '50% 50%', currentScale || 1)
+    openEditor(currentPosition || '0.5 0.5', currentScale || 1)
   }
 
   const handleConfirm = async () => {
-    const posStr = `${xRef.current.toFixed(2)}% ${yRef.current.toFixed(2)}%`
+    const posStr = `${cxRef.current.toFixed(4)} ${cyRef.current.toFixed(4)}`
     if (pendingFile) {
       setUploading(true)
       try {
@@ -283,6 +292,8 @@ export default function ImageUploader({
   const renderEditor = () => {
     if (!editorOpen || !preview) return null
 
+    const pct = (v: number) => `${(v * 100).toFixed(2)}%`
+
     const editorImgStyle: React.CSSProperties = {
       position: 'absolute',
       top: 0,
@@ -290,16 +301,15 @@ export default function ImageUploader({
       width: '100%',
       height: '100%',
       objectFit: 'cover',
-      objectPosition: `${x}% ${y}%`,
+      objectPosition: `${pct(cx)} ${pct(cy)}`,
       transform: `scale(${scale})`,
-      transformOrigin: 'center',
+      transformOrigin: `${pct(cx)} ${pct(cy)}`,
       userSelect: 'none',
       pointerEvents: 'none',
     }
 
     return (
       <div className="fixed inset-0 z-50 bg-black touch-none">
-        {/* フルスクリーン画像 + ドラッグ領域 */}
         <div
           ref={containerRef}
           className="absolute inset-0 overflow-hidden cursor-grab active:cursor-grabbing select-none"
