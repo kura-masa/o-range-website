@@ -5,8 +5,8 @@ import { uploadMemberImage, validateImageFile } from '@/lib/storage'
 
 interface ImageUploaderProps {
   currentImage?: string
-  currentPosition?: string  // "cx cy" 形式: 画像の中心として表示したい点（画像の自然サイズに対する0〜1の比率）
-  currentScale?: number     // ズーム倍率
+  currentPosition?: string  // "offsetX offsetY" 形式: 枠サイズに対する比率で、枠中央から画像中央までのオフセット
+  currentScale?: number     // ズーム倍率（1 = 短辺が枠サイズにフィット）
   memberId: string
   imageType: 'no1' | 'no2'
   onUploadSuccess: (url: string) => void
@@ -16,21 +16,58 @@ interface ImageUploaderProps {
   variant?: 'default' | 'compact' | 'overlay'
 }
 
-// 正規化座標(cx, cy: 0〜1) + scale → コンテナ内でその点を中心に表示するCSSを返す
-// コンテナはoverflow:hiddenで、画像はabsolute配置
+// offsetX, offsetY（枠サイズ比率）+ scale → メンバーカード表示用CSS
+// コンテナは overflow:hidden / position:relative / 正方形 で使う
+//
+// 計算：
+//   コンテナサイズ = F（正方形）
+//   画像中心 = コンテナ中央 + (offsetX * F, offsetY * F)
+//   画像サイズ = (nw/shortSide * scale * F, nh/shortSide * scale * F)
+//   left = F/2 + offsetX*F - imgW/2 = F*(0.5 + offsetX - aspectW*scale/2)
+//
+// ただし nw/nh は不明なので object-fit:cover + transform で代用:
+//   object-fit:cover → 短辺がFにフィット（scale=1相当）
+//   transform: scale(scale) → ズーム
+//   translateX = offsetX / scale → object-fit:cover後の画像サイズはF*(nw/nh比)なので
+//   正確には nw/nh が必要だが、position文字列に含める
+//
+// position = "offsetX offsetY nw nh" 形式で保存
 export function buildImageStyle(
-  position: string = '0.5 0.5',
+  position: string = '0 0',
   scale: number = 1
 ): React.CSSProperties {
-  const parts = (position || '0.5 0.5').split(' ')
-  const cx = parseFloat(parts[0])
-  const cy = parseFloat(parts[1])
-  const safeCx = isNaN(cx) ? 0.5 : cx
-  const safeCy = isNaN(cy) ? 0.5 : cy
+  const parts = (position || '0 0').split(' ')
+  const offsetX = parseFloat(parts[0])
+  const offsetY = parseFloat(parts[1])
+  const nw = parts[2] ? parseFloat(parts[2]) : 0
+  const nh = parts[3] ? parseFloat(parts[3]) : 0
+  const safeOffX = isNaN(offsetX) ? 0 : offsetX
+  const safeOffY = isNaN(offsetY) ? 0 : offsetY
 
-  // 画像をコンテナ全体にobject-cover相当で表示し、
-  // cx, cy の点がコンテナ中央に来るように object-position を使う
-  // （object-fit: cover + object-position: cx*100% cy*100% はコンテナ比率非依存）
+  if (nw > 0 && nh > 0) {
+    const shortSide = Math.min(nw, nh)
+    const aspectW = nw / shortSide
+    const aspectH = nh / shortSide
+    // 画像サイズ（コンテナF=100%基準）
+    const imgW = aspectW * scale * 100  // %
+    const imgH = aspectH * scale * 100  // %
+    // 画像left = 50% + offsetX*100% - imgW/2
+    const leftPct = 50 + safeOffX * 100 - imgW / 2
+    const topPct  = 50 + safeOffY * 100 - imgH / 2
+    return {
+      position: 'absolute',
+      left: `${leftPct.toFixed(6)}%`,
+      top: `${topPct.toFixed(6)}%`,
+      width: `${imgW.toFixed(6)}%`,
+      height: `${imgH.toFixed(6)}%`,
+      maxWidth: 'none',
+      maxHeight: 'none',
+      userSelect: 'none',
+      pointerEvents: 'none',
+    }
+  }
+
+  // 既存データ互換（nw/nh なし）: offsetX=0,offsetY=0,scale=1 → 中央表示
   return {
     position: 'absolute',
     top: 0,
@@ -38,9 +75,6 @@ export function buildImageStyle(
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    objectPosition: `${(safeCx * 100).toFixed(2)}% ${(safeCy * 100).toFixed(2)}%`,
-    transform: `scale(${scale})`,
-    transformOrigin: `${(safeCx * 100).toFixed(2)}% ${(safeCy * 100).toFixed(2)}%`,
     userSelect: 'none',
     pointerEvents: 'none',
   }
@@ -48,7 +82,7 @@ export function buildImageStyle(
 
 export default function ImageUploader({
   currentImage,
-  currentPosition = '0.5 0.5',
+  currentPosition = '0 0',
   currentScale = 1,
   memberId,
   imageType,
@@ -64,52 +98,100 @@ export default function ImageUploader({
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [editorOpen, setEditorOpen] = useState(false)
 
-  // 編集中の状態（ref で管理して useEffect 内から参照）
-  // cx, cy: 0〜1 の正規化座標（画像の「中心として見せたい点」）
-  const cxRef = useRef(0.5)
-  const cyRef = useRef(0.5)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+
+  // 画像自然サイズ
+  const imgNaturalW = useRef(0)
+  const imgNaturalH = useRef(0)
+  // displayScale: 自然サイズ→px変換（scale=1時、短辺=枠サイズF）
+  const displayScale = useRef(1)
+  // 枠サイズ・位置（px）
+  const frameSizePx = useRef(0)
+  const frameCenterX = useRef(0)
+  const frameCenterY = useRef(0)
+
+  // 画像中心の画面座標（px）
+  const imgCenterX = useRef(0)
+  const imgCenterY = useRef(0)
   const scaleRef = useRef(1)
 
-  // 表示更新用の state
-  const [cx, setCx] = useState(0.5)
-  const [cy, setCy] = useState(0.5)
-  const [scale, setScale] = useState(1)
+  // 表示更新用 state（全て同時更新して比率ずれ防止）
+  const [editorState, setEditorState] = useState({
+    imgCx: 0, imgCy: 0,
+    scale: 1,
+    nw: 0, nh: 0, ds: 1,
+  })
+  const [ready, setReady] = useState(false)
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  // ドラッグ用
   const dragging = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
   const lastPinchDist = useRef<number | null>(null)
 
+  const editorInitPos = useRef('0 0')
+  const editorInitScale = useRef(1)
+  const editorPreviewUrl = useRef('')
+
   const parsePos = useCallback((pos: string) => {
-    const parts = (pos || '0.5 0.5').split(' ')
-    const x = parseFloat(parts[0])
-    const y = parseFloat(parts[1])
-    return {
-      cx: isNaN(x) ? 0.5 : x,
-      cy: isNaN(y) ? 0.5 : y,
-    }
+    const parts = (pos || '0 0').split(' ')
+    const ox = parseFloat(parts[0])
+    const oy = parseFloat(parts[1])
+    return { offsetX: isNaN(ox) ? 0 : ox, offsetY: isNaN(oy) ? 0 : oy }
   }, [])
 
-  const openEditor = useCallback((pos: string, s: number) => {
-    const parsed = parsePos(pos)
-    cxRef.current = parsed.cx
-    cyRef.current = parsed.cy
-    scaleRef.current = s
-    setCx(parsed.cx)
-    setCy(parsed.cy)
-    setScale(s)
-    setEditorOpen(true)
-  }, [parsePos])
-
+  // エディタ初期化
   useEffect(() => {
     if (!editorOpen) return
-    const el = containerRef.current
+    setReady(false)
+
+    const img = new window.Image()
+    img.onload = () => {
+      imgNaturalW.current = img.naturalWidth
+      imgNaturalH.current = img.naturalHeight
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const screenW = window.innerWidth
+          const screenH = window.innerHeight
+          const frameSize = Math.min(screenW * 0.8, screenH * 0.6)
+          frameSizePx.current = frameSize
+          frameCenterX.current = screenW / 2
+          frameCenterY.current = screenH / 2
+
+          const nw = imgNaturalW.current
+          const nh = imgNaturalH.current
+          const shortSide = Math.min(nw, nh)
+          displayScale.current = frameSize / shortSide
+
+          const s = editorInitScale.current
+          scaleRef.current = s
+
+          const parsed = parsePos(editorInitPos.current)
+          // offsetX, offsetY（枠サイズ比率）→ 画像中心の画面座標
+          // 画像中心 = 枠中央 + offset * frameSize
+          imgCenterX.current = frameCenterX.current + parsed.offsetX * frameSize
+          imgCenterY.current = frameCenterY.current + parsed.offsetY * frameSize
+
+          setEditorState({
+            imgCx: imgCenterX.current,
+            imgCy: imgCenterY.current,
+            scale: s,
+            nw, nh,
+            ds: displayScale.current,
+          })
+          setReady(true)
+        })
+      })
+    }
+    img.src = editorPreviewUrl.current
+  }, [editorOpen, parsePos])
+
+  // ドラッグ・ピンチ・ホイール
+  useEffect(() => {
+    if (!editorOpen) return
+    const el = overlayRef.current
     if (!el) return
 
-    // マウス
     const onMouseDown = (e: MouseEvent) => {
       if ((e.target as HTMLElement).closest('button')) return
       e.preventDefault()
@@ -120,21 +202,16 @@ export default function ImageUploader({
     const onMouseMove = (e: MouseEvent) => {
       if (!dragging.current) return
       e.preventDefault()
-      const rect = el.getBoundingClientRect()
       const dx = e.clientX - lastPointer.current.x
       const dy = e.clientY - lastPointer.current.y
       lastPointer.current = { x: e.clientX, y: e.clientY }
-      // 右にドラッグ → cx を増やす（ドラッグ方向と同じ向きに画像が動く）
-      // scale が大きいほど細かく動く
-      cxRef.current = Math.min(1, Math.max(0, cxRef.current + (dx / rect.width) / scaleRef.current))
-      cyRef.current = Math.min(1, Math.max(0, cyRef.current + (dy / rect.height) / scaleRef.current))
-      setCx(cxRef.current)
-      setCy(cyRef.current)
+      imgCenterX.current += dx
+      imgCenterY.current += dy
+      setEditorState(prev => ({ ...prev, imgCx: imgCenterX.current, imgCy: imgCenterY.current }))
     }
 
     const onMouseUp = () => { dragging.current = false }
 
-    // タッチ
     const onTouchStart = (e: TouchEvent) => {
       e.preventDefault()
       if (e.touches.length === 2) {
@@ -151,23 +228,27 @@ export default function ImageUploader({
 
     const onTouchMove = (e: TouchEvent) => {
       e.preventDefault()
-      const rect = el.getBoundingClientRect()
       if (e.touches.length === 2 && lastPinchDist.current !== null) {
         const dx = e.touches[0].clientX - e.touches[1].clientX
         const dy = e.touches[0].clientY - e.touches[1].clientY
         const dist = Math.sqrt(dx * dx + dy * dy)
         const ratio = dist / lastPinchDist.current
         lastPinchDist.current = dist
-        scaleRef.current = Math.min(4, Math.max(0.5, scaleRef.current * ratio))
-        setScale(scaleRef.current)
+        const prevScale = scaleRef.current
+        const newScale = Math.min(8, Math.max(0.2, prevScale * ratio))
+        const fcx = frameCenterX.current
+        const fcy = frameCenterY.current
+        imgCenterX.current = fcx + (imgCenterX.current - fcx) * (newScale / prevScale)
+        imgCenterY.current = fcy + (imgCenterY.current - fcy) * (newScale / prevScale)
+        scaleRef.current = newScale
+        setEditorState(prev => ({ ...prev, imgCx: imgCenterX.current, imgCy: imgCenterY.current, scale: newScale }))
       } else if (e.touches.length === 1 && dragging.current) {
         const dx = e.touches[0].clientX - lastPointer.current.x
         const dy = e.touches[0].clientY - lastPointer.current.y
         lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-        cxRef.current = Math.min(1, Math.max(0, cxRef.current + (dx / rect.width) / scaleRef.current))
-        cyRef.current = Math.min(1, Math.max(0, cyRef.current + (dy / rect.height) / scaleRef.current))
-        setCx(cxRef.current)
-        setCy(cyRef.current)
+        imgCenterX.current += dx
+        imgCenterY.current += dy
+        setEditorState(prev => ({ ...prev, imgCx: imgCenterX.current, imgCy: imgCenterY.current }))
       }
     }
 
@@ -176,12 +257,17 @@ export default function ImageUploader({
       lastPinchDist.current = null
     }
 
-    // ホイール
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const delta = e.deltaY > 0 ? 0.95 : 1.05
-      scaleRef.current = Math.min(4, Math.max(0.5, scaleRef.current * delta))
-      setScale(scaleRef.current)
+      const prevScale = scaleRef.current
+      const newScale = Math.min(8, Math.max(0.2, prevScale * delta))
+      const fcx = frameCenterX.current
+      const fcy = frameCenterY.current
+      imgCenterX.current = fcx + (imgCenterX.current - fcx) * (newScale / prevScale)
+      imgCenterY.current = fcy + (imgCenterY.current - fcy) * (newScale / prevScale)
+      scaleRef.current = newScale
+      setEditorState(prev => ({ ...prev, imgCx: imgCenterX.current, imgCy: imgCenterY.current, scale: newScale }))
     }
 
     el.addEventListener('mousedown', onMouseDown)
@@ -203,6 +289,22 @@ export default function ImageUploader({
     }
   }, [editorOpen])
 
+  // 確定時: offsetX/Y（枠サイズ比率）を計算して保存
+  const computeOffset = useCallback(() => {
+    const frameSize = frameSizePx.current
+    if (frameSize === 0) return { offsetX: 0, offsetY: 0 }
+    const offsetX = (imgCenterX.current - frameCenterX.current) / frameSize
+    const offsetY = (imgCenterY.current - frameCenterY.current) / frameSize
+    return { offsetX, offsetY }
+  }, [])
+
+  const openEditor = (pos: string, s: number, imgUrl: string) => {
+    editorInitPos.current = pos
+    editorInitScale.current = s
+    editorPreviewUrl.current = imgUrl
+    setEditorOpen(true)
+  }
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -216,16 +318,19 @@ export default function ImageUploader({
     setPreview(objectUrl)
     setPendingFile(file)
     if (fileInputRef.current) fileInputRef.current.value = ''
-    openEditor('0.5 0.5', 1)
+    openEditor('0 0', 1, objectUrl)
   }
 
   const handleOpenEditor = () => {
     if (!preview) return
-    openEditor(currentPosition || '0.5 0.5', currentScale || 1)
+    openEditor(currentPosition || '0 0', currentScale || 1, preview)
   }
 
   const handleConfirm = async () => {
-    const posStr = `${cxRef.current.toFixed(4)} ${cyRef.current.toFixed(4)}`
+    const { offsetX, offsetY } = computeOffset()
+    const nw = imgNaturalW.current
+    const nh = imgNaturalH.current
+    const posStr = `${offsetX.toFixed(8)} ${offsetY.toFixed(8)} ${nw} ${nh}`
     if (pendingFile) {
       setUploading(true)
       try {
@@ -292,58 +397,83 @@ export default function ImageUploader({
   const renderEditor = () => {
     if (!editorOpen || !preview) return null
 
-    const pct = (v: number) => `${(v * 100).toFixed(2)}%`
+    const { imgCx: icx, imgCy: icy, scale: s, nw, nh, ds } = editorState
+    const isReady = ready && nw > 0 && nh > 0 && ds > 0
 
-    const editorImgStyle: React.CSSProperties = {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      objectFit: 'cover',
-      objectPosition: `${pct(cx)} ${pct(cy)}`,
-      transform: `scale(${scale})`,
-      transformOrigin: `${pct(cx)} ${pct(cy)}`,
-      userSelect: 'none',
-      pointerEvents: 'none',
-    }
+    // 画像表示サイズ（px）
+    const dispW = nw * ds * s
+    const dispH = nh * ds * s
+
+    // 画像の left/top（画面座標）
+    const imgLeft = icx - dispW / 2
+    const imgTop  = icy - dispH / 2
+
+    // 枠の位置・サイズ
+    const frameSize   = frameSizePx.current
+    const frameLeft   = frameCenterX.current - frameSize / 2
+    const frameTop    = frameCenterY.current - frameSize / 2
+    const frameRight  = frameLeft + frameSize
+    const frameBottom = frameTop  + frameSize
 
     return (
-      <div className="fixed inset-0 z-50 bg-black touch-none">
+      <div className="fixed inset-0 z-50">
+        {/* ドラッグ操作エリア */}
         <div
-          ref={containerRef}
-          className="absolute inset-0 overflow-hidden cursor-grab active:cursor-grabbing select-none"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          ref={overlayRef}
+          className="absolute inset-0 touch-none cursor-grab active:cursor-grabbing"
+          style={{ zIndex: 1 }}
+        />
+        {/* 黒背景 */}
+        <div className="fixed inset-0 bg-black" style={{ zIndex: 0 }} />
+
+        {/* 画像 1枚 */}
+        {isReady && (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={preview}
             alt="編集中"
             draggable={false}
-            style={editorImgStyle}
+            style={{
+              position: 'fixed',
+              left: `${imgLeft}px`,
+              top: `${imgTop}px`,
+              width: `${dispW}px`,
+              height: `${dispH}px`,
+              maxWidth: 'none',
+              maxHeight: 'none',
+              userSelect: 'none',
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
           />
-        </div>
+        )}
 
-        {/* 正方形枠オーバーレイ */}
-        <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-          <div
-            style={{ width: 'min(80vw, 80vh)', height: 'min(80vw, 80vh)' }}
-            className="relative"
-          >
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-black/60" style={{ width: '200vw', height: '200vh' }} />
-            <div className="absolute top-full left-1/2 -translate-x-1/2 bg-black/60" style={{ width: '200vw', height: '200vh' }} />
-            <div className="absolute right-full top-0 bg-black/60" style={{ width: '200vw', height: '100%' }} />
-            <div className="absolute left-full top-0 bg-black/60" style={{ width: '200vw', height: '100%' }} />
-            <div className="absolute inset-0 border-4 border-white" />
-            <div className="absolute bottom-full left-0 right-0 text-center pb-2">
-              <span className="text-white text-sm font-medium">ズーム・移動できます</span>
-            </div>
-          </div>
+        {/* 枠外を暗くする4枚のオーバーレイ */}
+        <div className="fixed pointer-events-none" style={{ zIndex: 2, top: 0, left: 0, right: 0, height: `${frameTop}px`, background: 'rgba(0,0,0,0.65)' }} />
+        <div className="fixed pointer-events-none" style={{ zIndex: 2, top: `${frameBottom}px`, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.65)' }} />
+        <div className="fixed pointer-events-none" style={{ zIndex: 2, top: `${frameTop}px`, left: 0, width: `${frameLeft}px`, height: `${frameSize}px`, background: 'rgba(0,0,0,0.65)' }} />
+        <div className="fixed pointer-events-none" style={{ zIndex: 2, top: `${frameTop}px`, left: `${frameRight}px`, right: 0, height: `${frameSize}px`, background: 'rgba(0,0,0,0.65)' }} />
+
+        {/* 枠の白ボーダー */}
+        <div className="fixed pointer-events-none" style={{
+          zIndex: 3,
+          left: `${frameLeft}px`,
+          top: `${frameTop}px`,
+          width: `${frameSize}px`,
+          height: `${frameSize}px`,
+          border: '2px solid white',
+        }} />
+
+        {/* ヘルプテキスト */}
+        <div className="fixed top-4 left-0 right-0 text-center pointer-events-none" style={{ zIndex: 4 }}>
+          <span className="text-white text-sm font-medium">ズーム・移動できます</span>
         </div>
 
         {/* ✕ / ✓ ボタン */}
-        <div className="absolute bottom-8 left-0 right-0 flex justify-center gap-8 z-10">
+        <div className="fixed bottom-8 left-0 right-0 flex justify-center gap-8" style={{ zIndex: 10, pointerEvents: 'none' }}>
           <button
             onClick={handleCancel}
+            style={{ pointerEvents: 'auto' }}
             className="w-14 h-14 rounded-full bg-gray-800 text-white text-2xl flex items-center justify-center hover:bg-gray-700"
           >
             ✕
@@ -351,6 +481,7 @@ export default function ImageUploader({
           <button
             onClick={handleConfirm}
             disabled={uploading}
+            style={{ pointerEvents: 'auto' }}
             className="w-14 h-14 rounded-full bg-orange-500 text-white text-2xl flex items-center justify-center hover:bg-orange-600 disabled:opacity-50"
           >
             {uploading ? '…' : '✓'}
@@ -358,7 +489,7 @@ export default function ImageUploader({
         </div>
 
         {error && (
-          <div className="absolute top-8 left-4 right-4 bg-red-600 text-white text-sm text-center py-2 px-4 rounded-lg z-10">
+          <div className="fixed top-12 left-4 right-4 bg-red-600 text-white text-sm text-center py-2 px-4 rounded-lg" style={{ zIndex: 4 }}>
             {error}
           </div>
         )}
