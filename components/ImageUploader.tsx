@@ -124,10 +124,10 @@ export default function ImageUploader({
       const dx = e.clientX - lastPointer.current.x
       const dy = e.clientY - lastPointer.current.y
       lastPointer.current = { x: e.clientX, y: e.clientY }
-      // 右にドラッグ → cx を減らす（右の内容が見えるように）
+      // 右にドラッグ → cx を増やす（ドラッグ方向と同じ向きに画像が動く）
       // scale が大きいほど細かく動く
-      cxRef.current = Math.min(1, Math.max(0, cxRef.current - (dx / rect.width) / scaleRef.current))
-      cyRef.current = Math.min(1, Math.max(0, cyRef.current - (dy / rect.height) / scaleRef.current))
+      cxRef.current = Math.min(1, Math.max(0, cxRef.current + (dx / rect.width) / scaleRef.current))
+      cyRef.current = Math.min(1, Math.max(0, cyRef.current + (dy / rect.height) / scaleRef.current))
       setCx(cxRef.current)
       setCy(cyRef.current)
     }
@@ -164,8 +164,8 @@ export default function ImageUploader({
         const dx = e.touches[0].clientX - lastPointer.current.x
         const dy = e.touches[0].clientY - lastPointer.current.y
         lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-        cxRef.current = Math.min(1, Math.max(0, cxRef.current - (dx / rect.width) / scaleRef.current))
-        cyRef.current = Math.min(1, Math.max(0, cyRef.current - (dy / rect.height) / scaleRef.current))
+        cxRef.current = Math.min(1, Math.max(0, cxRef.current + (dx / rect.width) / scaleRef.current))
+        cyRef.current = Math.min(1, Math.max(0, cyRef.current + (dy / rect.height) / scaleRef.current))
         setCx(cxRef.current)
         setCy(cyRef.current)
       }
