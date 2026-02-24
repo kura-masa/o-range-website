@@ -296,7 +296,6 @@ export default function ImageUploader({
       transform: `translate(${tx}%, ${ty}%) scale(${scale})`,
       userSelect: 'none',
       pointerEvents: 'none',
-      draggable: false,
     }
 
     return (
@@ -310,7 +309,8 @@ export default function ImageUploader({
           <img
             src={preview}
             alt="編集中"
-            style={imgStyle as React.CSSProperties & { draggable: boolean }}
+            draggable={false}
+            style={imgStyle}
           />
         </div>
 
