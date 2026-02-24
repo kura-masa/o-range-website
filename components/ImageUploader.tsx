@@ -144,13 +144,28 @@ export default function ImageUploader({
     const onTouchMove = (e: TouchEvent) => {
       e.preventDefault()
       if (e.touches.length === 2 && lastPinchDist.current !== null) {
+        const rect = el.getBoundingClientRect()
         const dx = e.touches[0].clientX - e.touches[1].clientX
         const dy = e.touches[0].clientY - e.touches[1].clientY
         const dist = Math.sqrt(dx * dx + dy * dy)
         const ratio = dist / lastPinchDist.current
         lastPinchDist.current = dist
-        scaleRef.current = Math.min(4, Math.max(0.5, scaleRef.current * ratio))
-        setScale(scaleRef.current)
+
+        // ピンチ中心（コンテナ相対）
+        const cx = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / rect.width * 100
+        const cy = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top) / rect.height * 100
+
+        const oldScale = scaleRef.current
+        const newScale = Math.min(4, Math.max(0.5, oldScale * ratio))
+
+        // ピンチ中心を基準にtx,tyを補正
+        txRef.current = cx - (cx - txRef.current) * (newScale / oldScale)
+        tyRef.current = cy - (cy - tyRef.current) * (newScale / oldScale)
+
+        scaleRef.current = newScale
+        setScale(newScale)
+        setTx(txRef.current)
+        setTy(tyRef.current)
       } else if (e.touches.length === 1 && dragging.current) {
         const rect = el.getBoundingClientRect()
         const dx = e.touches[0].clientX - lastPointer.current.x
@@ -172,9 +187,22 @@ export default function ImageUploader({
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      const rect = el.getBoundingClientRect()
       const delta = e.deltaY > 0 ? 0.95 : 1.05
-      scaleRef.current = Math.min(4, Math.max(0.5, scaleRef.current * delta))
-      setScale(scaleRef.current)
+      const oldScale = scaleRef.current
+      const newScale = Math.min(4, Math.max(0.5, oldScale * delta))
+
+      // マウスカーソル位置（コンテナ相対）を基準にズーム
+      const cx = (e.clientX - rect.left) / rect.width * 100
+      const cy = (e.clientY - rect.top) / rect.height * 100
+
+      txRef.current = cx - (cx - txRef.current) * (newScale / oldScale)
+      tyRef.current = cy - (cy - tyRef.current) * (newScale / oldScale)
+
+      scaleRef.current = newScale
+      setScale(newScale)
+      setTx(txRef.current)
+      setTy(tyRef.current)
     }
 
     el.addEventListener('mousedown', onMouseDown)
