@@ -41,7 +41,7 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
 
       {/* プロフィール画像No.1 */}
       <div
-        className="w-full aspect-square relative bg-gray-200"
+        className="w-full aspect-square relative bg-black"
         onClick={(e) => isEditing && e.stopPropagation()}
       >
         {isEditing ? (
