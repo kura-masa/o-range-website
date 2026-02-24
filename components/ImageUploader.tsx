@@ -5,7 +5,7 @@ import { uploadMemberImage, validateImageFile } from '@/lib/storage'
 
 interface ImageUploaderProps {
   currentImage?: string
-  currentPosition?: string  // "tx% ty%" 形式で保存（コンテナサイズ比率）
+  currentPosition?: string  // "x% y%" 形式（CSS object-position そのもの）
   currentScale?: number
   memberId: string
   imageType: 'no1' | 'no2'
@@ -16,15 +16,11 @@ interface ImageUploaderProps {
   variant?: 'default' | 'compact' | 'overlay'
 }
 
-// コンテナに対するtransformをCSSに変換
-// tx, ty はコンテナ幅・高さに対する割合（%）
+// CSS object-position + scale をそのまま適用（コンテナ非依存）
 export function buildImageStyle(
-  position: string = '0% 0%',
+  position: string = '50% 50%',
   scale: number = 1
 ): React.CSSProperties {
-  const parts = (position || '0% 0%').split(' ')
-  const tx = parseFloat(parts[0]) || 0
-  const ty = parseFloat(parts[1]) || 0
   return {
     position: 'absolute',
     top: 0,
@@ -32,8 +28,9 @@ export function buildImageStyle(
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    transformOrigin: '0 0',
-    transform: `translate(${tx}%, ${ty}%) scale(${scale})`,
+    objectPosition: position,
+    transform: `scale(${scale})`,
+    transformOrigin: 'center',
     userSelect: 'none',
     pointerEvents: 'none',
   }
@@ -41,7 +38,7 @@ export function buildImageStyle(
 
 export default function ImageUploader({
   currentImage,
-  currentPosition = '0% 0%',
+  currentPosition = '50% 50%',
   currentScale = 1,
   memberId,
   imageType,
@@ -58,13 +55,14 @@ export default function ImageUploader({
   const [editorOpen, setEditorOpen] = useState(false)
 
   // 編集中の状態（refで管理してuseEffect内から参照）
-  const txRef = useRef(0)  // translate X（コンテナ幅に対する%）
-  const tyRef = useRef(0)  // translate Y（コンテナ高さに対する%）
+  // x, y は object-position の値（0〜100）
+  const xRef = useRef(50)
+  const yRef = useRef(50)
   const scaleRef = useRef(1)
 
-  // 表示更新用のstate（renderをトリガーするだけ）
-  const [tx, setTx] = useState(0)
-  const [ty, setTy] = useState(0)
+  // 表示更新用のstate
+  const [x, setX] = useState(50)
+  const [y, setY] = useState(50)
   const [scale, setScale] = useState(1)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -75,33 +73,31 @@ export default function ImageUploader({
   const lastPointer = useRef({ x: 0, y: 0 })
   const lastPinchDist = useRef<number | null>(null)
 
-  // currentPosition文字列をtx,tyに変換
   const parsePosition = useCallback((pos: string) => {
-    const parts = (pos || '0% 0%').split(' ')
+    const parts = (pos || '50% 50%').split(' ')
     return {
-      tx: parseFloat(parts[0]) || 0,
-      ty: parseFloat(parts[1]) || 0,
+      x: parseFloat(parts[0]) ?? 50,
+      y: parseFloat(parts[1]) ?? 50,
     }
   }, [])
 
-  // エディタを開くときの初期化
   const openEditor = useCallback((pos: string, s: number) => {
-    const { tx: ptx, ty: pty } = parsePosition(pos)
-    txRef.current = ptx
-    tyRef.current = pty
+    const parsed = parsePosition(pos)
+    xRef.current = parsed.x
+    yRef.current = parsed.y
     scaleRef.current = s
-    setTx(ptx)
-    setTy(pty)
+    setX(parsed.x)
+    setY(parsed.y)
     setScale(s)
     setEditorOpen(true)
   }, [parsePosition])
 
-  // タッチ・マウス・ホイールのイベントをuseEffectで管理
   useEffect(() => {
     if (!editorOpen) return
     const el = containerRef.current
     if (!el) return
 
+    // --- マウス ---
     const onMouseDown = (e: MouseEvent) => {
       if ((e.target as HTMLElement).closest('button')) return
       e.preventDefault()
@@ -116,17 +112,19 @@ export default function ImageUploader({
       const dx = e.clientX - lastPointer.current.x
       const dy = e.clientY - lastPointer.current.y
       lastPointer.current = { x: e.clientX, y: e.clientY }
-      // ピクセル → コンテナ幅・高さに対する%に変換
-      const dxPct = (dx / rect.width) * 100
-      const dyPct = (dy / rect.height) * 100
-      txRef.current = txRef.current + dxPct
-      tyRef.current = tyRef.current + dyPct
-      setTx(txRef.current)
-      setTy(tyRef.current)
+
+      // object-position では「右にドラッグ = x を減らす」
+      // 感度: scale が大きいほど細かく動かせるよう調整
+      const sensitivity = 100 / scaleRef.current
+      xRef.current = Math.min(100, Math.max(0, xRef.current - (dx / rect.width) * sensitivity))
+      yRef.current = Math.min(100, Math.max(0, yRef.current - (dy / rect.height) * sensitivity))
+      setX(xRef.current)
+      setY(yRef.current)
     }
 
     const onMouseUp = () => { dragging.current = false }
 
+    // --- タッチ ---
     const onTouchStart = (e: TouchEvent) => {
       e.preventDefault()
       if (e.touches.length === 2) {
@@ -144,39 +142,23 @@ export default function ImageUploader({
     const onTouchMove = (e: TouchEvent) => {
       e.preventDefault()
       if (e.touches.length === 2 && lastPinchDist.current !== null) {
-        const rect = el.getBoundingClientRect()
         const dx = e.touches[0].clientX - e.touches[1].clientX
         const dy = e.touches[0].clientY - e.touches[1].clientY
         const dist = Math.sqrt(dx * dx + dy * dy)
         const ratio = dist / lastPinchDist.current
         lastPinchDist.current = dist
-
-        // ピンチ中心（コンテナ相対）
-        const cx = ((e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left) / rect.width * 100
-        const cy = ((e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top) / rect.height * 100
-
-        const oldScale = scaleRef.current
-        const newScale = Math.min(4, Math.max(0.5, oldScale * ratio))
-
-        // ピンチ中心を基準にtx,tyを補正
-        txRef.current = cx - (cx - txRef.current) * (newScale / oldScale)
-        tyRef.current = cy - (cy - tyRef.current) * (newScale / oldScale)
-
-        scaleRef.current = newScale
-        setScale(newScale)
-        setTx(txRef.current)
-        setTy(tyRef.current)
+        scaleRef.current = Math.min(4, Math.max(0.5, scaleRef.current * ratio))
+        setScale(scaleRef.current)
       } else if (e.touches.length === 1 && dragging.current) {
         const rect = el.getBoundingClientRect()
         const dx = e.touches[0].clientX - lastPointer.current.x
         const dy = e.touches[0].clientY - lastPointer.current.y
         lastPointer.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-        const dxPct = (dx / rect.width) * 100
-        const dyPct = (dy / rect.height) * 100
-        txRef.current = txRef.current + dxPct
-        tyRef.current = tyRef.current + dyPct
-        setTx(txRef.current)
-        setTy(tyRef.current)
+        const sensitivity = 100 / scaleRef.current
+        xRef.current = Math.min(100, Math.max(0, xRef.current - (dx / rect.width) * sensitivity))
+        yRef.current = Math.min(100, Math.max(0, yRef.current - (dy / rect.height) * sensitivity))
+        setX(xRef.current)
+        setY(yRef.current)
       }
     }
 
@@ -185,24 +167,12 @@ export default function ImageUploader({
       lastPinchDist.current = null
     }
 
+    // --- ホイール ---
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      const rect = el.getBoundingClientRect()
       const delta = e.deltaY > 0 ? 0.95 : 1.05
-      const oldScale = scaleRef.current
-      const newScale = Math.min(4, Math.max(0.5, oldScale * delta))
-
-      // マウスカーソル位置（コンテナ相対）を基準にズーム
-      const cx = (e.clientX - rect.left) / rect.width * 100
-      const cy = (e.clientY - rect.top) / rect.height * 100
-
-      txRef.current = cx - (cx - txRef.current) * (newScale / oldScale)
-      tyRef.current = cy - (cy - tyRef.current) * (newScale / oldScale)
-
-      scaleRef.current = newScale
-      setScale(newScale)
-      setTx(txRef.current)
-      setTy(tyRef.current)
+      scaleRef.current = Math.min(4, Math.max(0.5, scaleRef.current * delta))
+      setScale(scaleRef.current)
     }
 
     el.addEventListener('mousedown', onMouseDown)
@@ -237,16 +207,16 @@ export default function ImageUploader({
     setPreview(objectUrl)
     setPendingFile(file)
     if (fileInputRef.current) fileInputRef.current.value = ''
-    openEditor('0% 0%', 1)
+    openEditor('50% 50%', 1)
   }
 
   const handleOpenEditor = () => {
     if (!preview) return
-    openEditor(currentPosition || '0% 0%', currentScale || 1)
+    openEditor(currentPosition || '50% 50%', currentScale || 1)
   }
 
   const handleConfirm = async () => {
-    const posStr = `${txRef.current.toFixed(3)}% ${tyRef.current.toFixed(3)}%`
+    const posStr = `${xRef.current.toFixed(2)}% ${yRef.current.toFixed(2)}%`
     if (pendingFile) {
       setUploading(true)
       try {
@@ -313,15 +283,16 @@ export default function ImageUploader({
   const renderEditor = () => {
     if (!editorOpen || !preview) return null
 
-    const imgStyle: React.CSSProperties = {
+    const editorImgStyle: React.CSSProperties = {
       position: 'absolute',
       top: 0,
       left: 0,
       width: '100%',
       height: '100%',
       objectFit: 'cover',
-      transformOrigin: '0 0',
-      transform: `translate(${tx}%, ${ty}%) scale(${scale})`,
+      objectPosition: `${x}% ${y}%`,
+      transform: `scale(${scale})`,
+      transformOrigin: 'center',
       userSelect: 'none',
       pointerEvents: 'none',
     }
@@ -338,24 +309,21 @@ export default function ImageUploader({
             src={preview}
             alt="編集中"
             draggable={false}
-            style={imgStyle}
+            style={editorImgStyle}
           />
         </div>
 
-        {/* 正方形枠オーバーレイ（pointer-events-none） */}
+        {/* 正方形枠オーバーレイ */}
         <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
           <div
             style={{ width: 'min(80vw, 80vh)', height: 'min(80vw, 80vh)' }}
             className="relative"
           >
-            {/* マスク4方向 */}
             <div className="absolute bottom-full left-1/2 -translate-x-1/2 bg-black/60" style={{ width: '200vw', height: '200vh' }} />
             <div className="absolute top-full left-1/2 -translate-x-1/2 bg-black/60" style={{ width: '200vw', height: '200vh' }} />
             <div className="absolute right-full top-0 bg-black/60" style={{ width: '200vw', height: '100%' }} />
             <div className="absolute left-full top-0 bg-black/60" style={{ width: '200vw', height: '100%' }} />
-            {/* 枠線 */}
             <div className="absolute inset-0 border-4 border-white" />
-            {/* 説明文 */}
             <div className="absolute bottom-full left-0 right-0 text-center pb-2">
               <span className="text-white text-sm font-medium">ズーム・移動できます</span>
             </div>
