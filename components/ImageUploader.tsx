@@ -5,8 +5,8 @@ import { uploadMemberImage, validateImageFile } from '@/lib/storage'
 
 interface ImageUploaderProps {
   currentImage?: string
-  currentPosition?: string  // "offsetX offsetY" 形式: 枠サイズに対する比率で、枠中央から画像中央までのオフセット
-  currentScale?: number     // ズーム倍率（1 = 短辺が枠サイズにフィット）
+  currentPosition?: string  // "offsetX offsetY nw nh" 形式
+  currentScale?: number     // ズーム倍率
   memberId: string
   imageType: 'no1' | 'no2'
   onUploadSuccess: (url: string) => void
@@ -14,27 +14,15 @@ interface ImageUploaderProps {
   onScaleChange?: (scale: number) => void
   label: string
   variant?: 'default' | 'compact' | 'overlay'
+  frameAspect?: number  // 枠のアスペクト比 width/height（デフォルト1=正方形）
 }
 
-// offsetX, offsetY（枠サイズ比率）+ scale → メンバーカード表示用CSS
-// コンテナは overflow:hidden / position:relative / 正方形 で使う
-//
-// 計算：
-//   コンテナサイズ = F（正方形）
-//   画像中心 = コンテナ中央 + (offsetX * F, offsetY * F)
-//   画像サイズ = (nw/shortSide * scale * F, nh/shortSide * scale * F)
-//   left = F/2 + offsetX*F - imgW/2 = F*(0.5 + offsetX - aspectW*scale/2)
-//
-// ただし nw/nh は不明なので object-fit:cover + transform で代用:
-//   object-fit:cover → 短辺がFにフィット（scale=1相当）
-//   transform: scale(scale) → ズーム
-//   translateX = offsetX / scale → object-fit:cover後の画像サイズはF*(nw/nh比)なので
-//   正確には nw/nh が必要だが、position文字列に含める
-//
-// position = "offsetX offsetY nw nh" 形式で保存
+// offsetX, offsetY（枠幅基準の比率）+ scale + nw + nh → 表示用CSS
+// containerAspect: コンテナのアスペクト比 width/height
 export function buildImageStyle(
   position: string = '0 0',
-  scale: number = 1
+  scale: number = 1,
+  containerAspect: number = 1
 ): React.CSSProperties {
   const parts = (position || '0 0').split(' ')
   const offsetX = parseFloat(parts[0])
@@ -45,21 +33,37 @@ export function buildImageStyle(
   const safeOffY = isNaN(offsetY) ? 0 : offsetY
 
   if (nw > 0 && nh > 0) {
+    // コンテナサイズ：幅=W, 高さ=W/containerAspect
+    // offsetX/Y は枠幅W基準
+    // 画像の短辺が scale=1 のとき枠幅W にフィット
+    // → 画像サイズ(px): imgW = nw/shortSide * scale * W, imgH = nh/shortSide * scale * W
+    // → % 表示では width基準で計算（position:absoluteの%はコンテナサイズ基準）
+    // コンテナ幅=100%, 高さ=100%（aspect-ratioで制御）
+    // width:%はコンテナ幅基準、height:%はコンテナ高さ基準
+    // コンテナ幅=W, コンテナ高さ=W/containerAspect
+    // imgW(px) = nw/shortSide * scale * W → imgW(%) = nw/shortSide * scale * 100
+    // imgH(px) = nh/shortSide * scale * W → imgH(%) = nh/shortSide * scale * containerAspect * 100
     const shortSide = Math.min(nw, nh)
-    const aspectW = nw / shortSide
-    const aspectH = nh / shortSide
-    // 画像サイズ（コンテナF=100%基準）
-    const imgW = aspectW * scale * 100  // %
-    const imgH = aspectH * scale * 100  // %
-    // 画像left = 50% + offsetX*100% - imgW/2
-    const leftPct = 50 + safeOffX * 100 - imgW / 2
-    const topPct  = 50 + safeOffY * 100 - imgH / 2
+    const imgWpct = (nw / shortSide) * scale * 100
+    const imgHpct = (nh / shortSide) * scale * containerAspect * 100
+    // 画像中心(px) = コンテナ中央 + offset*W
+    // left(px) = imgCenter_x - imgW/2 = W/2 + offsetX*W - imgW/2
+    // left(%) = 50 + offsetX*100 - imgWpct/2
+    const leftPct = 50 + safeOffX * 100 - imgWpct / 2
+    // top(px) = H/2 + offsetY*W - imgH/2 = (W/containerAspect)/2 + offsetY*W - imgH/2
+    // top(%) = top(px) / (W/containerAspect) * 100
+    //        = (50/containerAspect + offsetY*100 - imgHpct/(2*containerAspect)) * containerAspect
+    //   ※ top(%)はコンテナ高さ基準
+    // top(px) = W/2/containerAspect + offsetY*W - nh/shortSide*scale*W/2
+    // top(%) = top(px) / (W/containerAspect) * 100
+    //        = (1/2 + offsetY*containerAspect - nh/shortSide*scale*containerAspect/2) * 100
+    const topPct = (0.5 + safeOffY * containerAspect - (nh / shortSide) * scale * containerAspect / 2) * 100
     return {
       position: 'absolute',
       left: `${leftPct.toFixed(6)}%`,
       top: `${topPct.toFixed(6)}%`,
-      width: `${imgW.toFixed(6)}%`,
-      height: `${imgH.toFixed(6)}%`,
+      width: `${imgWpct.toFixed(6)}%`,
+      height: `${imgHpct.toFixed(6)}%`,
       maxWidth: 'none',
       maxHeight: 'none',
       userSelect: 'none',
@@ -67,7 +71,7 @@ export function buildImageStyle(
     }
   }
 
-  // 既存データ互換（nw/nh なし）: offsetX=0,offsetY=0,scale=1 → 中央表示
+  // 既存データ互換（nw/nh なし）
   return {
     position: 'absolute',
     top: 0,
@@ -91,6 +95,7 @@ export default function ImageUploader({
   onScaleChange,
   label,
   variant = 'default',
+  frameAspect = 1,
 }: ImageUploaderProps) {
   const [preview, setPreview] = useState<string | undefined>(currentImage)
   const [uploading, setUploading] = useState(false)
@@ -104,10 +109,11 @@ export default function ImageUploader({
   // 画像自然サイズ
   const imgNaturalW = useRef(0)
   const imgNaturalH = useRef(0)
-  // displayScale: 自然サイズ→px変換（scale=1時、短辺=枠サイズF）
+  // displayScale: 自然サイズ→px変換（scale=1時、短辺=枠幅FW）
   const displayScale = useRef(1)
-  // 枠サイズ・位置（px）
-  const frameSizePx = useRef(0)
+  // 枠サイズ・位置（px）：枠幅FW、枠高FH = FW/frameAspect
+  const frameW = useRef(0)
+  const frameH = useRef(0)
   const frameCenterX = useRef(0)
   const frameCenterY = useRef(0)
 
@@ -153,24 +159,37 @@ export default function ImageUploader({
         requestAnimationFrame(() => {
           const screenW = window.innerWidth
           const screenH = window.innerHeight
-          const frameSize = Math.min(screenW * 0.8, screenH * 0.6)
-          frameSizePx.current = frameSize
+
+          // 枠サイズ計算：frameAspectを考慮
+          // 枠幅 = min(screenW*0.85, screenH*0.85*frameAspect)
+          const maxFW = screenW * 0.85
+          const maxFH = screenH * 0.75
+          let fw: number, fh: number
+          if (maxFW / frameAspect <= maxFH) {
+            fw = maxFW
+            fh = maxFW / frameAspect
+          } else {
+            fh = maxFH
+            fw = maxFH * frameAspect
+          }
+          frameW.current = fw
+          frameH.current = fh
           frameCenterX.current = screenW / 2
           frameCenterY.current = screenH / 2
 
           const nw = imgNaturalW.current
           const nh = imgNaturalH.current
           const shortSide = Math.min(nw, nh)
-          displayScale.current = frameSize / shortSide
+          // scale=1 のとき短辺=枠幅FW
+          displayScale.current = fw / shortSide
 
           const s = editorInitScale.current
           scaleRef.current = s
 
           const parsed = parsePos(editorInitPos.current)
-          // offsetX, offsetY（枠サイズ比率）→ 画像中心の画面座標
-          // 画像中心 = 枠中央 + offset * frameSize
-          imgCenterX.current = frameCenterX.current + parsed.offsetX * frameSize
-          imgCenterY.current = frameCenterY.current + parsed.offsetY * frameSize
+          // offsetX/Y（枠幅FW基準）→ 画像中心の画面座標
+          imgCenterX.current = frameCenterX.current + parsed.offsetX * fw
+          imgCenterY.current = frameCenterY.current + parsed.offsetY * fw
 
           setEditorState({
             imgCx: imgCenterX.current,
@@ -184,7 +203,7 @@ export default function ImageUploader({
       })
     }
     img.src = editorPreviewUrl.current
-  }, [editorOpen, parsePos])
+  }, [editorOpen, parsePos, frameAspect])
 
   // ドラッグ・ピンチ・ホイール
   useEffect(() => {
@@ -289,12 +308,12 @@ export default function ImageUploader({
     }
   }, [editorOpen])
 
-  // 確定時: offsetX/Y（枠サイズ比率）を計算して保存
+  // 確定時: offsetX/Y（枠幅FW基準）を計算
   const computeOffset = useCallback(() => {
-    const frameSize = frameSizePx.current
-    if (frameSize === 0) return { offsetX: 0, offsetY: 0 }
-    const offsetX = (imgCenterX.current - frameCenterX.current) / frameSize
-    const offsetY = (imgCenterY.current - frameCenterY.current) / frameSize
+    const fw = frameW.current
+    if (fw === 0) return { offsetX: 0, offsetY: 0 }
+    const offsetX = (imgCenterX.current - frameCenterX.current) / fw
+    const offsetY = (imgCenterY.current - frameCenterY.current) / fw
     return { offsetX, offsetY }
   }, [])
 
@@ -408,12 +427,13 @@ export default function ImageUploader({
     const imgLeft = icx - dispW / 2
     const imgTop  = icy - dispH / 2
 
-    // 枠の位置・サイズ
-    const frameSize   = frameSizePx.current
-    const frameLeft   = frameCenterX.current - frameSize / 2
-    const frameTop    = frameCenterY.current - frameSize / 2
-    const frameRight  = frameLeft + frameSize
-    const frameBottom = frameTop  + frameSize
+    // 枠の位置・サイズ（px）
+    const fw = frameW.current
+    const fh = frameH.current
+    const frameLeft   = frameCenterX.current - fw / 2
+    const frameTop    = frameCenterY.current - fh / 2
+    const frameRight  = frameLeft + fw
+    const frameBottom = frameTop  + fh
 
     return (
       <div className="fixed inset-0 z-50">
@@ -451,16 +471,16 @@ export default function ImageUploader({
         {/* 枠外を暗くする4枚のオーバーレイ */}
         <div className="fixed pointer-events-none" style={{ zIndex: 2, top: 0, left: 0, right: 0, height: `${frameTop}px`, background: 'rgba(0,0,0,0.65)' }} />
         <div className="fixed pointer-events-none" style={{ zIndex: 2, top: `${frameBottom}px`, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.65)' }} />
-        <div className="fixed pointer-events-none" style={{ zIndex: 2, top: `${frameTop}px`, left: 0, width: `${frameLeft}px`, height: `${frameSize}px`, background: 'rgba(0,0,0,0.65)' }} />
-        <div className="fixed pointer-events-none" style={{ zIndex: 2, top: `${frameTop}px`, left: `${frameRight}px`, right: 0, height: `${frameSize}px`, background: 'rgba(0,0,0,0.65)' }} />
+        <div className="fixed pointer-events-none" style={{ zIndex: 2, top: `${frameTop}px`, left: 0, width: `${frameLeft}px`, height: `${fh}px`, background: 'rgba(0,0,0,0.65)' }} />
+        <div className="fixed pointer-events-none" style={{ zIndex: 2, top: `${frameTop}px`, left: `${frameRight}px`, right: 0, height: `${fh}px`, background: 'rgba(0,0,0,0.65)' }} />
 
         {/* 枠の白ボーダー */}
         <div className="fixed pointer-events-none" style={{
           zIndex: 3,
           left: `${frameLeft}px`,
           top: `${frameTop}px`,
-          width: `${frameSize}px`,
-          height: `${frameSize}px`,
+          width: `${fw}px`,
+          height: `${fh}px`,
           border: '2px solid white',
         }} />
 
@@ -507,7 +527,7 @@ export default function ImageUploader({
               src={preview}
               alt={label}
               draggable={false}
-              style={buildImageStyle(currentPosition, currentScale)}
+              style={buildImageStyle(currentPosition, currentScale, frameAspect)}
             />
           ) : (
             <div className="w-full h-full bg-gray-800 flex items-center justify-center">
@@ -544,7 +564,7 @@ export default function ImageUploader({
               src={preview}
               alt={label}
               draggable={false}
-              style={buildImageStyle(currentPosition, currentScale)}
+              style={buildImageStyle(currentPosition, currentScale, 1)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

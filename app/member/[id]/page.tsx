@@ -88,8 +88,8 @@ export default function MemberDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white pb-24">
-      {/* ヒーロー画像エリア */}
-      <div className="relative w-full" style={{ minHeight: '55vw', maxHeight: '70vh' }}>
+      {/* ヒーロー画像エリア（16:9固定） */}
+      <div className="relative w-full aspect-video">
         {/* 戻るボタン */}
         <button
           onClick={() => router.back()}
@@ -111,23 +111,21 @@ export default function MemberDetailPage() {
               onScaleChange={(s) => handleUpdate('imageNo2Scale', s)}
               label="プロフィール画像"
               variant="overlay"
+              frameAspect={16 / 9}
             />
           </div>
         ) : member.imageNo2 ? (
-          <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden bg-black">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={member.imageNo2}
               alt={member.name}
               draggable={false}
-              style={buildImageStyle(member.imageNo2Position, member.imageNo2Scale)}
+              style={buildImageStyle(member.imageNo2Position, member.imageNo2Scale, 16 / 9)}
             />
           </div>
         ) : (
-          <div
-            className="w-full flex items-center justify-center bg-[#1a1a2e]"
-            style={{ minHeight: '55vw', maxHeight: '70vh' }}
-          >
+          <div className="w-full h-full flex items-center justify-center bg-[#1a1a2e]">
             <span className="text-gray-500 text-sm">準備中</span>
           </div>
         )}
