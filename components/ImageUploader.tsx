@@ -71,7 +71,10 @@ export function buildImageStyle(
     }
   }
 
-  // 既存データ互換（nw/nh なし）
+  // 既存データ互換（nw/nh なし）: cx cy 形式として object-position で表示
+  // cx, cy は 0〜1 の正規化座標（0.5 0.5 = 中央）
+  const safeCx = isNaN(offsetX) ? 0.5 : Math.min(1, Math.max(0, offsetX))
+  const safeCy = isNaN(offsetY) ? 0.5 : Math.min(1, Math.max(0, offsetY))
   return {
     position: 'absolute',
     top: 0,
@@ -79,6 +82,7 @@ export function buildImageStyle(
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+    objectPosition: `${(safeCx * 100).toFixed(2)}% ${(safeCy * 100).toFixed(2)}%`,
     userSelect: 'none',
     pointerEvents: 'none',
   }
