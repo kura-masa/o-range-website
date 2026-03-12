@@ -96,8 +96,10 @@ export default function Home() {
       birthDate: '準備中',
       hometown: '準備中',
       hobbies: '準備中',
-      thoughts: '準備中',
-      career: '準備中',
+      sections: [
+        { category: '経歴', content: '' },
+        { category: '展望', content: '' },
+      ],
     }
 
     try {

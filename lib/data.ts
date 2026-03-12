@@ -1,3 +1,12 @@
+// プロフィールセクションのカテゴリ一覧
+export const SECTION_CATEGORIES = ['趣味', '展望', '経歴', '制作物', 'やってみたいこと', '思い', '考え'] as const
+export type SectionCategory = typeof SECTION_CATEGORIES[number]
+
+export interface ProfileSection {
+  category: SectionCategory
+  content: string
+}
+
 export interface Member {
   id: string
   name: string
@@ -12,6 +21,8 @@ export interface Member {
   birthDate?: string
   hometown?: string
   hobbies?: string
+  sections?: ProfileSection[] // 選択式プロフィールセクション
+  // 旧フィールド（互換性のため残存）
   thoughts?: string
   career?: string
 }

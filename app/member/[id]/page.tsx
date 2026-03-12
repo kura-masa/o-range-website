@@ -9,7 +9,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
 import { useNotification } from '@/contexts/NotificationContext'
-import { Member } from '@/lib/data'
+import { Member, ProfileSection, SECTION_CATEGORIES } from '@/lib/data'
 import { getMember, saveMember } from '@/lib/firestore'
 import SaveButtons from '@/components/SaveButtons'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
@@ -66,6 +66,13 @@ export default function MemberDetailPage() {
   const handleUpdate = (field: keyof Member, value: string | number) => {
     if (member) {
       setMember({ ...member, [field]: value })
+      setHasUnsavedChanges(true)
+    }
+  }
+
+  const handleUpdateSections = (newSections: ProfileSection[]) => {
+    if (member) {
+      setMember({ ...member, sections: newSections })
       setHasUnsavedChanges(true)
     }
   }
@@ -203,62 +210,96 @@ export default function MemberDetailPage() {
           </div>
         </div>
 
-        {/* HOBBIES & VISION セクション */}
-        <div className="mb-8">
-          <h2
-            className="text-xl font-black tracking-widest mb-2"
-            style={{ color: '#FF8C42', textShadow: '0 0 12px rgba(255,140,66,0.6)' }}
-          >
-            HOBBIES &amp; VISION
-          </h2>
-          <div className="border-b-2 border-orange-primary mb-4 w-12" />
-          {isEditMode ? (
-            <textarea
-              value={member.thoughts || ''}
-              onChange={(e) => handleUpdate('thoughts', e.target.value)}
-              className="w-full bg-[#111118] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 outline-none min-h-[120px] resize-none"
-              placeholder="趣味・ビジョンを入力してください"
-            />
-          ) : (
-            <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
-              {member.thoughts || '未設定'}
-            </div>
-          )}
-        </div>
-
-        {/* CAREER & FUTURE セクション */}
-        <div className="mb-8">
-          <h2
-            className="text-xl font-black tracking-widest mb-2"
-            style={{ color: '#FF8C42', textShadow: '0 0 12px rgba(255,140,66,0.6)' }}
-          >
-            CAREER &amp; FUTURE
-          </h2>
-          <div className="border-b-2 border-orange-primary mb-4 w-12" />
-          {isEditMode ? (
-            <textarea
-              value={member.career || ''}
-              onChange={(e) => handleUpdate('career', e.target.value)}
-              className="w-full bg-[#111118] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 outline-none min-h-[150px] resize-none"
-              placeholder="経歴・今後の展開を入力してください"
-            />
-          ) : (
-            <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
-              {member.career ? (
-                member.career.split('\n').map((line, i) =>
-                  line.trim() ? (
-                    <div key={i} className="flex items-start gap-2 mb-1">
-                      <span className="text-orange-primary mt-0.5 flex-shrink-0">◎</span>
-                      <span>{line}</span>
+        {/* プロフィールセクション（選択式） */}
+        {(member.sections && member.sections.length > 0) || isEditMode ? (
+          <>
+            {(member.sections || []).map((section, index) => (
+              <div key={index} className="mb-8">
+                {isEditMode ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <select
+                        value={section.category}
+                        onChange={(e) => {
+                          const newSections = [...(member.sections || [])]
+                          newSections[index] = { ...newSections[index], category: e.target.value as any }
+                          handleUpdateSections(newSections)
+                        }}
+                        className="bg-[#111118] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-orange-primary font-bold outline-none"
+                      >
+                        {SECTION_CATEGORIES.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSections = (member.sections || []).filter((_, i) => i !== index)
+                          handleUpdateSections(newSections)
+                        }}
+                        className="text-red-400 hover:text-red-300 text-sm px-2 py-1 rounded border border-red-400/30 hover:border-red-300/50 transition-colors"
+                      >
+                        ✕ 削除
+                      </button>
                     </div>
-                  ) : null
-                )
-              ) : (
-                <span className="text-gray-500">未設定</span>
-              )}
-            </div>
-          )}
-        </div>
+                    <textarea
+                      value={section.content}
+                      onChange={(e) => {
+                        const newSections = [...(member.sections || [])]
+                        newSections[index] = { ...newSections[index], content: e.target.value }
+                        handleUpdateSections(newSections)
+                      }}
+                      className="w-full bg-[#111118] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 outline-none min-h-[120px] resize-none"
+                      placeholder="内容を入力してください"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <h2
+                      className="text-xl font-black tracking-widest mb-2"
+                      style={{ color: '#FF8C42', textShadow: '0 0 12px rgba(255,140,66,0.6)' }}
+                    >
+                      {section.category}
+                    </h2>
+                    <div className="border-b-2 border-orange-primary mb-4 w-12" />
+                    <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
+                      {section.content ? (
+                        section.content.split('\n').map((line, i) =>
+                          line.trim() ? (
+                            <div key={i} className="flex items-start gap-2 mb-1">
+                              <span className="text-orange-primary mt-0.5 flex-shrink-0">◎</span>
+                              <span>{line}</span>
+                            </div>
+                          ) : null
+                        )
+                      ) : (
+                        <span className="text-gray-500">未設定</span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+
+            {/* セクション追加ボタン（編集モード時のみ） */}
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  const newSections = [...(member.sections || []), { category: '趣味' as const, content: '' }]
+                  handleUpdateSections(newSections)
+                }}
+                className="w-full py-3 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:text-orange-primary hover:border-orange-primary/50 transition-colors text-sm font-semibold"
+              >
+                ＋ セクションを追加
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="mb-8 text-center text-gray-500 text-sm py-8">
+            セクションが設定されていません
+          </div>
+        )}
       </div>
 
       {isAuthenticated && isEditMode && (

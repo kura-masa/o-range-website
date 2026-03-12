@@ -10,7 +10,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore'
 import app, { isFirebaseConfigured } from './firebase'
-import { Member, Report, ReportHistory, ReportEmbedding, Idea } from './data'
+import { Member, Report, ReportHistory, ReportEmbedding, Idea, ProfileSection } from './data'
 import { generateEmbedding } from './gemini'
 
 // Firestoreインスタンスの取得
@@ -49,6 +49,17 @@ export async function getMembers(): Promise<Member[]> {
       const data = doc.data() as any
       const imageNo1 = typeof data.imageNo1 === 'string' && data.imageNo1.startsWith('blob:') ? undefined : data.imageNo1
       const imageNo2 = typeof data.imageNo2 === 'string' && data.imageNo2.startsWith('blob:') ? undefined : data.imageNo2
+      // sectionsフィールドがあればそのまま使用、なければ旧フィールドからマイグレーション
+      let sections: ProfileSection[] | undefined = undefined
+      if (Array.isArray(data.sections)) {
+        sections = data.sections as ProfileSection[]
+      } else {
+        // 旧データからマイグレーション
+        const migrated: ProfileSection[] = []
+        if (data.thoughts) migrated.push({ category: '思い', content: data.thoughts })
+        if (data.career) migrated.push({ category: '経歴', content: data.career })
+        if (migrated.length > 0) sections = migrated
+      }
       return {
         id: doc.id,
         name: data.name || '',
@@ -63,6 +74,7 @@ export async function getMembers(): Promise<Member[]> {
         birthDate: data.birthdate || data.birthDate || '',
         hometown: data.hometown || '',
         hobbies: data.hobbies || '',
+        sections,
         thoughts: data.thoughts || '',
         career: data.career || ''
       } as Member
@@ -93,6 +105,16 @@ export async function getMember(id: string): Promise<Member | null> {
       const data = docSnap.data() as any
       const imageNo1 = typeof data.imageNo1 === 'string' && data.imageNo1.startsWith('blob:') ? undefined : data.imageNo1
       const imageNo2 = typeof data.imageNo2 === 'string' && data.imageNo2.startsWith('blob:') ? undefined : data.imageNo2
+      // sectionsフィールドがあればそのまま使用、なければ旧フィールドからマイグレーション
+      let sections: ProfileSection[] | undefined = undefined
+      if (Array.isArray(data.sections)) {
+        sections = data.sections as ProfileSection[]
+      } else {
+        const migrated: ProfileSection[] = []
+        if (data.thoughts) migrated.push({ category: '思い', content: data.thoughts })
+        if (data.career) migrated.push({ category: '経歴', content: data.career })
+        if (migrated.length > 0) sections = migrated
+      }
       const member = {
         id: docSnap.id,
         name: data.name || '',
@@ -107,6 +129,7 @@ export async function getMember(id: string): Promise<Member | null> {
         birthDate: data.birthdate || data.birthDate || '',
         hometown: data.hometown || '',
         hobbies: data.hobbies || '',
+        sections,
         thoughts: data.thoughts || '',
         career: data.career || ''
       } as Member
@@ -145,6 +168,7 @@ export async function saveMember(member: Member): Promise<void> {
       tagline: member.tagline || '',
       hometown: member.hometown || '',
       hobbies: member.hobbies || '',
+      sections: member.sections || [],
       thoughts: member.thoughts || '',
       career: member.career || '',
     }
