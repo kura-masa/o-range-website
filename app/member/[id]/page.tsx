@@ -9,7 +9,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
 import { useNotification } from '@/contexts/NotificationContext'
-import { Member, ProfileSection, SECTION_CATEGORIES } from '@/lib/data'
+import { Member, ProfileSection, SECTION_CATEGORIES, CUSTOM_CATEGORY } from '@/lib/data'
 import { getMember, saveMember } from '@/lib/firestore'
 import SaveButtons from '@/components/SaveButtons'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
@@ -217,12 +217,16 @@ export default function MemberDetailPage() {
               <div key={index} className="mb-8">
                 {isEditMode ? (
                   <>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <select
-                        value={section.category}
+                        value={(SECTION_CATEGORIES as readonly string[]).includes(section.category) ? section.category : CUSTOM_CATEGORY}
                         onChange={(e) => {
                           const newSections = [...(member.sections || [])]
-                          newSections[index] = { ...newSections[index], category: e.target.value as any }
+                          if (e.target.value === CUSTOM_CATEGORY) {
+                            newSections[index] = { ...newSections[index], category: '' }
+                          } else {
+                            newSections[index] = { ...newSections[index], category: e.target.value }
+                          }
                           handleUpdateSections(newSections)
                         }}
                         className="bg-[#111118] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-orange-primary font-bold outline-none"
@@ -230,7 +234,21 @@ export default function MemberDetailPage() {
                         {SECTION_CATEGORIES.map((cat) => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
+                        <option value={CUSTOM_CATEGORY}>✏️ 自由入力</option>
                       </select>
+                      {!(SECTION_CATEGORIES as readonly string[]).includes(section.category) && (
+                        <input
+                          type="text"
+                          value={section.category}
+                          onChange={(e) => {
+                            const newSections = [...(member.sections || [])]
+                            newSections[index] = { ...newSections[index], category: e.target.value }
+                            handleUpdateSections(newSections)
+                          }}
+                          className="bg-[#111118] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-orange-primary font-bold outline-none flex-1 min-w-[120px]"
+                          placeholder="タイトルを入力"
+                        />
+                      )}
                       <button
                         type="button"
                         onClick={() => {
