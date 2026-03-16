@@ -28,9 +28,37 @@ export default function LoginModal({ onClose, onSuccess, redirectTo }: LoginModa
   const loadMembers = async () => {
     try {
       const data = await getMembers()
-      setMembers(data)
-      if (data.length > 0) {
-        setSelectedMemberId(data[0].id)
+      
+      const predefinedOrder = [
+        '河村航希',
+        '村尾勇真',
+        '谷口裕樹',
+        '田熊杏菜',
+        '倉永将宏',
+        '加藤優翔',
+        '竹原正育'
+      ]
+
+      const sortedData = [...data].sort((a, b) => {
+        const indexA = predefinedOrder.indexOf(a.name)
+        const indexB = predefinedOrder.indexOf(b.name)
+        
+        // "その他の人" should always be at the very end if it exists as a specific member
+        if (a.name === 'その他の人') return 1
+        if (b.name === 'その他の人') return -1
+
+        if (indexA !== -1 && indexB !== -1) {
+          return indexA - indexB
+        }
+        if (indexA !== -1) return -1
+        if (indexB !== -1) return 1
+        
+        return 0 // Keep original order for other members
+      })
+
+      setMembers(sortedData)
+      if (sortedData.length > 0) {
+        setSelectedMemberId(sortedData[0].id)
       }
     } catch (error) {
       console.error('Error loading members:', error)
