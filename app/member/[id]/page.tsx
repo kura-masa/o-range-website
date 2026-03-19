@@ -25,7 +25,7 @@ export default function MemberDetailPage() {
 
   useEffect(() => {
     if (params?.id) {
-      loadMember(params.id)
+      loadMember(decodeURIComponent(params.id))
     }
   }, [params?.id])
 
@@ -274,12 +274,12 @@ export default function MemberDetailPage() {
                 ) : (
                   <>
                     <h2
-                      className="text-xl font-black tracking-widest mb-2"
+                      className="text-xl font-black tracking-widest mb-1"
                       style={{ color: '#FF8C42', textShadow: '0 0 12px rgba(255,140,66,0.6)' }}
                     >
                       {section.category}
                     </h2>
-                    <div className="border-b-2 border-orange-primary mb-4 w-12" />
+                    <div className="border-b-2 border-orange-primary mb-2 w-500" />
                     <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
                       {section.content ? (
                         section.content.split('\n').map((line, i) =>
@@ -315,7 +315,7 @@ export default function MemberDetailPage() {
           </>
         ) : (
           <div className="mb-8 text-center text-gray-500 text-sm py-8">
-            セクションが設定されていません
+            右上のボタンを押して「編集する」から追加できます
           </div>
         )}
       </div>

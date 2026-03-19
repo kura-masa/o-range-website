@@ -3,16 +3,17 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { getMembers } from '@/lib/firestore'
 import { Member } from '@/lib/data'
+import { getMember, saveMember } from '@/lib/firestore'
 
 interface LoginModalProps {
   onClose: () => void
   onSuccess: () => void
   redirectTo?: string // ログイン成功後に遷移するURL（オプション）
+  onMemberAutoAdded?: () => void // メンバー自動追加後のコールバック
 }
 
-export default function LoginModal({ onClose, onSuccess, redirectTo }: LoginModalProps) {
+export default function LoginModal({ onClose, onSuccess, redirectTo, onMemberAutoAdded }: LoginModalProps) {
   const [id, setId] = useState('')
   const [selectedMemberId, setSelectedMemberId] = useState('')
   const [members, setMembers] = useState<Member[]>([])
@@ -27,38 +28,26 @@ export default function LoginModal({ onClose, onSuccess, redirectTo }: LoginModa
 
   const loadMembers = async () => {
     try {
-      const data = await getMembers()
-      
-      const predefinedOrder = [
+      const memberNames = [
         '河村航希',
         '村尾勇真',
         '谷口裕樹',
         '田熊杏菜',
         '倉永将宏',
         '加藤優翔',
-        '竹原正育'
+        '竹原正育',
+        'その他の人'
       ]
 
-      const sortedData = [...data].sort((a, b) => {
-        const indexA = predefinedOrder.indexOf(a.name)
-        const indexB = predefinedOrder.indexOf(b.name)
-        
-        // "その他の人" should always be at the very end if it exists as a specific member
-        if (a.name === 'その他の人') return 1
-        if (b.name === 'その他の人') return -1
+      // Firestoreのデータに関わらず、固定のリストをそのまま表示する
+      const orderedData = memberNames.map(name => ({
+        id: name,
+        name: name
+      } as Member))
 
-        if (indexA !== -1 && indexB !== -1) {
-          return indexA - indexB
-        }
-        if (indexA !== -1) return -1
-        if (indexB !== -1) return 1
-        
-        return 0 // Keep original order for other members
-      })
-
-      setMembers(sortedData)
-      if (sortedData.length > 0) {
-        setSelectedMemberId(sortedData[0].id)
+      setMembers(orderedData)
+      if (orderedData.length > 0) {
+        setSelectedMemberId(orderedData[0].id)
       }
     } catch (error) {
       console.error('Error loading members:', error)
@@ -68,7 +57,7 @@ export default function LoginModal({ onClose, onSuccess, redirectTo }: LoginModa
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
@@ -100,6 +89,32 @@ export default function LoginModal({ onClose, onSuccess, redirectTo }: LoginModa
 
     const success = login(id, loginMemberId, loginMemberName)
     if (success) {
+      // 「その他の人」以外を選択した場合、Firestoreにメンバーが未登録なら自動追加
+      if (loginMemberName !== 'その他の人') {
+        try {
+          const existing = await getMember(loginMemberId)
+          if (!existing) {
+            const newMember: Member = {
+              id: loginMemberId,
+              name: loginMemberName,
+              nickname: '',
+              tagline: '',
+              imageNo1: undefined,
+              imageNo2: undefined,
+              birthDate: '',
+              hometown: '',
+              hobbies: '',
+              sections: [],
+            }
+            await saveMember(newMember)
+            console.log(`✅ 自動でメンバー「${loginMemberName}」を追加しました`)
+            onMemberAutoAdded?.()
+          }
+        } catch (err) {
+          console.error('自動メンバー追加に失敗:', err)
+        }
+      }
+
       // ログイン成功後、redirectToが指定されていれば遷移
       if (redirectTo) {
         router.push(redirectTo)

@@ -8,10 +8,9 @@ interface MemberCardProps {
   member: Member
   isEditing: boolean
   onUpdate: (id: string, field: keyof Member, value: string) => void
-  onDelete?: (id: string) => void
 }
 
-export default function MemberCard({ member, isEditing, onUpdate, onDelete }: MemberCardProps) {
+export default function MemberCard({ member, isEditing, onUpdate }: MemberCardProps) {
   const router = useRouter()
 
   const handleClick = () => {
@@ -26,18 +25,7 @@ export default function MemberCard({ member, isEditing, onUpdate, onDelete }: Me
       className={`relative bg-white rounded-lg shadow-md overflow-hidden ${!isEditing ? 'cursor-pointer hover:shadow-xl transition-shadow' : ''
         }`}
     >
-      {isEditing && onDelete && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete(member.id)
-          }}
-          className="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 z-10"
-        >
-          削除
-        </button>
-      )}
+
 
       {/* プロフィール画像No.1 */}
       <div

@@ -8,11 +8,11 @@ import { useRouter } from 'next/navigation'
 import LoginModal from './LoginModal'
 
 interface HamburgerMenuProps {
-  onAddMember?: () => void
   hideEditButton?: boolean // 編集ボタンを非表示にするフラグ
+  onMemberAutoAdded?: () => void // メンバー自動追加後のコールバック
 }
 
-export default function HamburgerMenu({ onAddMember, hideEditButton = false }: HamburgerMenuProps) {
+export default function HamburgerMenu({ hideEditButton = false, onMemberAutoAdded }: HamburgerMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showLoginModal, setShowLoginModal] = useState(false)
   const [shouldRedirectAfterLogin, setShouldRedirectAfterLogin] = useState(false)
@@ -66,12 +66,7 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
     }
   }
 
-  const handleAddMember = () => {
-    if (onAddMember) {
-      onAddMember()
-      setIsOpen(false)
-    }
-  }
+
 
   return (
     <>
@@ -158,23 +153,7 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
                   </button>
                 )}
 
-                {!hideEditButton && isEditMode && onAddMember && (
-                  <button
-                    onClick={handleAddMember}
-                    className="w-full text-left px-2 py-2 rounded-lg hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition-colors font-semibold text-sm"
-                  >
-                    メンバー追加
-                  </button>
-                )}
 
-                {hideEditButton && onAddMember && (
-                  <button
-                    onClick={handleAddMember}
-                    className="w-full text-left px-2 py-2 rounded-lg hover:bg-blue-50 text-blue-600 hover:text-blue-700 transition-colors font-semibold text-sm"
-                  >
-                    メンバー追加
-                  </button>
-                )}
 
                 <button
                   onClick={handleLogout}
@@ -201,6 +180,7 @@ export default function HamburgerMenu({ onAddMember, hideEditButton = false }: H
             setShouldRedirectAfterLogin(false)
           }}
           redirectTo={shouldRedirectAfterLogin ? '/reports' : undefined}
+          onMemberAutoAdded={onMemberAutoAdded}
         />
       )}
     </>

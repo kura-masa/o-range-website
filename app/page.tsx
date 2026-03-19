@@ -8,12 +8,12 @@ import MemberCard from '@/components/MemberCard'
 import SaveButtons from '@/components/SaveButtons'
 import HamburgerMenu from '@/components/HamburgerMenu'
 import { Member } from '@/lib/data'
-import { getMembers, saveMembers, saveMember } from '@/lib/firestore'
+import { getMembers, saveMembers } from '@/lib/firestore'
 
 export default function Home() {
   const { isAuthenticated } = useAuth()
   const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
-  const { showToast, confirmAction } = useNotification()
+  const { showToast } = useNotification()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -70,77 +70,7 @@ export default function Home() {
     setHasUnsavedChanges(true)
   }
 
-  const handleAddMember = async () => {
-    console.log('handleAddMember called')
 
-    // 既存のメンバーIDから次の番号を取得
-    const existingIds = members
-      .map(m => m.id)
-      .filter(id => id.startsWith('member-'))
-      .map(id => parseInt(id.replace('member-', ''), 10))
-      .filter(num => !isNaN(num))
-
-    console.log('Existing IDs:', existingIds)
-
-    const nextNumber = existingIds.length > 0 ? Math.max(...existingIds) + 1 : 1
-    const id = `member-${String(nextNumber).padStart(5, '0')}`
-    console.log('New Member ID:', id)
-
-    const newMember: Member = {
-      id,
-      name: '準備中',
-      nickname: '準備中',
-      tagline: '準備中です',
-      imageNo1: undefined,
-      imageNo2: undefined,
-      birthDate: '準備中',
-      hometown: '準備中',
-      hobbies: '準備中',
-      sections: [
-        { category: '経歴', content: '' },
-        { category: '展望', content: '' },
-      ],
-    }
-
-    try {
-      // Optimistic Update: 先にUIを更新
-      setMembers((prev) => [...prev, newMember])
-
-      // 追加時に即Firestoreへ保存（自動保存）
-      await saveMember(newMember)
-      console.log('Member saved to Firestore')
-
-      // 新しく追加されたメンバーまでスクロール
-      setTimeout(() => {
-        const newMemberElement = document.getElementById(`member-${id}`)
-        if (newMemberElement) {
-          newMemberElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-      }, 100)
-    } catch (e) {
-      console.error('Error auto-saving new member:', e)
-      showToast('error', 'メンバーの追加に失敗しました')
-      // ロールバック
-      setMembers((prev) => prev.filter(m => m.id !== id))
-    }
-  }
-
-  const handleDeleteMember = (id: string) => {
-    const target = members.find((m) => m.id === id)
-    const label = target?.name ? `「${target.name}」` : 'このメンバー'
-
-    confirmAction({
-      title: 'メンバーの削除',
-      message: `${label} を削除しますか？（保存ボタンを押すまで確定されません）`,
-      confirmLabel: '削除する',
-      variant: 'danger',
-      onConfirm: () => {
-        setMembers((prev) => prev.filter((m) => m.id !== id))
-        setHasUnsavedChanges(true)
-        showToast('info', 'メンバーを削除リストに追加しました（保存して確定してください）')
-      }
-    })
-  }
 
   if (loading) {
     return (
@@ -152,7 +82,7 @@ export default function Home() {
 
   return (
     <>
-      <HamburgerMenu onAddMember={handleAddMember} />
+      <HamburgerMenu onMemberAutoAdded={loadMembers} />
 
       <div className="max-w-6xl mx-auto px-2 py-3 pb-24">
         <header className="mb-3 text-center">
@@ -174,7 +104,6 @@ export default function Home() {
                   member={member}
                   isEditing={isEditMode}
                   onUpdate={handleUpdateMember}
-                  onDelete={handleDeleteMember}
                 />
               </div>
             ))}

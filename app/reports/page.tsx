@@ -612,7 +612,7 @@ export default function ReportsPage() {
 
   return (
     <>
-      <HamburgerMenu onAddMember={handleAddReport} hideEditButton={true} />
+      <HamburgerMenu hideEditButton={true} />
       
       <div className="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-24">
         {/* ヘッダー - コンパクト化 */}
