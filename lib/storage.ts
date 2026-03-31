@@ -57,6 +57,16 @@ export async function uploadMemberImage(
   return uploadImage(file, path)
 }
 
+// セクション内画像をアップロード
+export async function uploadSectionImage(
+  memberId: string,
+  file: File,
+  sectionIndex: number
+): Promise<string> {
+  const path = `members/${memberId}/section_${sectionIndex}_${Date.now()}.jpg`
+  return uploadImage(file, path)
+}
+
 // 画像を削除
 export async function deleteImage(imageUrl: string): Promise<void> {
   if (!useStorage()) {

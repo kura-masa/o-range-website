@@ -9,10 +9,44 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
 import { useNotification } from '@/contexts/NotificationContext'
-import { Member, ProfileSection, SECTION_CATEGORIES, CUSTOM_CATEGORY } from '@/lib/data'
+import { Member, ProfileSection, ContentBlock, SECTION_CATEGORIES, CUSTOM_CATEGORY } from '@/lib/data'
 import { getMember, saveMember } from '@/lib/firestore'
+import { uploadSectionImage, validateImageFile } from '@/lib/storage'
 import SaveButtons from '@/components/SaveButtons'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
+
+// テキスト内の [表示テキスト](URL) をリンクに変換して描画
+function renderTextWithLinks(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = []
+  const regex = /\[([^\]]+)\]\(([^)]+)\)/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(text)) !== null) {
+    // リンク前のテキスト
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    // リンク部分
+    parts.push(
+      <a
+        key={match.index}
+        href={match[2]}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-orange-400 underline underline-offset-2 hover:text-orange-300 transition-colors"
+      >
+        {match[1]}
+      </a>
+    )
+    lastIndex = match.index + match[0].length
+  }
+  // 残りのテキスト
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+  return parts.length > 0 ? parts : [text]
+}
 
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>()
@@ -260,6 +294,11 @@ export default function MemberDetailPage() {
                         ✕ 削除
                       </button>
                     </div>
+                    {/* リンク記法ヒント */}
+                    <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
+                      <span>💡</span>
+                      <span>リンク記法: <code className="bg-[#1a1a2e] px-1 py-0.5 rounded text-orange-400/70">[表示テキスト](URL)</code></span>
+                    </div>
                     <textarea
                       value={section.content}
                       onChange={(e) => {
@@ -268,8 +307,133 @@ export default function MemberDetailPage() {
                         handleUpdateSections(newSections)
                       }}
                       className="w-full bg-[#111118] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 outline-none min-h-[120px] resize-none"
-                      placeholder="内容を入力してください"
+                      placeholder="内容を入力してください&#10;リンクは [表示テキスト](URL) の形式で埋め込めます"
                     />
+
+                    {/* 画像ブロック一覧（編集モード） */}
+                    {(section.blocks || []).map((block, bIdx) => (
+                      <div key={bIdx} className="mt-3 bg-[#111118] border border-gray-700 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-gray-400 font-semibold">📷 画像ブロック {bIdx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSections = [...(member.sections || [])]
+                              const newBlocks = [...(newSections[index].blocks || [])]
+                              newBlocks.splice(bIdx, 1)
+                              newSections[index] = { ...newSections[index], blocks: newBlocks }
+                              handleUpdateSections(newSections)
+                            }}
+                            className="text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded border border-red-400/30 hover:border-red-300/50 transition-colors"
+                          >
+                            ✕ 削除
+                          </button>
+                        </div>
+                        {block.value ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={block.value}
+                            alt={block.caption || '画像'}
+                            className="w-full max-h-48 object-contain rounded mb-2 bg-black/30"
+                          />
+                        ) : (
+                          <div className="w-full h-32 bg-[#0a0a0f] rounded flex items-center justify-center mb-2">
+                            <label className="cursor-pointer px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition-colors">
+                              画像をアップロード
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/jpg,image/png,image/webp"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  const validation = validateImageFile(file)
+                                  if (!validation.valid) {
+                                    showToast('error', validation.error || '不正なファイルです')
+                                    return
+                                  }
+                                  try {
+                                    const url = await uploadSectionImage(member.id, file, index)
+                                    const newSections = [...(member.sections || [])]
+                                    const newBlocks = [...(newSections[index].blocks || [])]
+                                    newBlocks[bIdx] = { ...newBlocks[bIdx], value: url }
+                                    newSections[index] = { ...newSections[index], blocks: newBlocks }
+                                    handleUpdateSections(newSections)
+                                    showToast('success', '画像をアップロードしました')
+                                  } catch {
+                                    showToast('error', '画像のアップロードに失敗しました')
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
+                        {/* キャプション入力 */}
+                        <input
+                          type="text"
+                          value={block.caption || ''}
+                          onChange={(e) => {
+                            const newSections = [...(member.sections || [])]
+                            const newBlocks = [...(newSections[index].blocks || [])]
+                            newBlocks[bIdx] = { ...newBlocks[bIdx], caption: e.target.value }
+                            newSections[index] = { ...newSections[index], blocks: newBlocks }
+                            handleUpdateSections(newSections)
+                          }}
+                          className="w-full bg-[#0a0a0f] border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 outline-none mb-2"
+                          placeholder="キャプション（任意）"
+                        />
+                        {/* キャプション位置 */}
+                        <div className="flex items-center gap-3 text-xs text-gray-400">
+                          <span>キャプション位置:</span>
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`caption-pos-${index}-${bIdx}`}
+                              checked={(block.captionPosition || 'below') === 'above'}
+                              onChange={() => {
+                                const newSections = [...(member.sections || [])]
+                                const newBlocks = [...(newSections[index].blocks || [])]
+                                newBlocks[bIdx] = { ...newBlocks[bIdx], captionPosition: 'above' }
+                                newSections[index] = { ...newSections[index], blocks: newBlocks }
+                                handleUpdateSections(newSections)
+                              }}
+                              className="accent-orange-500"
+                            />
+                            上
+                          </label>
+                          <label className="flex items-center gap-1 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`caption-pos-${index}-${bIdx}`}
+                              checked={(block.captionPosition || 'below') === 'below'}
+                              onChange={() => {
+                                const newSections = [...(member.sections || [])]
+                                const newBlocks = [...(newSections[index].blocks || [])]
+                                newBlocks[bIdx] = { ...newBlocks[bIdx], captionPosition: 'below' }
+                                newSections[index] = { ...newSections[index], blocks: newBlocks }
+                                handleUpdateSections(newSections)
+                              }}
+                              className="accent-orange-500"
+                            />
+                            下
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* 画像追加ボタン */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newSections = [...(member.sections || [])]
+                        const newBlocks: ContentBlock[] = [...(newSections[index].blocks || []), { type: 'image', value: '', caption: '', captionPosition: 'below' }]
+                        newSections[index] = { ...newSections[index], blocks: newBlocks }
+                        handleUpdateSections(newSections)
+                      }}
+                      className="mt-2 w-full py-2 border border-dashed border-gray-600 rounded-lg text-gray-400 hover:text-orange-primary hover:border-orange-primary/50 transition-colors text-xs font-semibold"
+                    >
+                      ＋ 画像を追加
+                    </button>
                   </>
                 ) : (
                   <>
@@ -286,7 +450,7 @@ export default function MemberDetailPage() {
                           line.trim() ? (
                             <div key={i} className="flex items-start gap-2 mb-1">
                               <span className="text-orange-primary mt-0.5 flex-shrink-0">◎</span>
-                              <span>{line}</span>
+                              <span>{renderTextWithLinks(line)}</span>
                             </div>
                           ) : null
                         )
@@ -294,6 +458,30 @@ export default function MemberDetailPage() {
                         <span className="text-gray-500">未設定</span>
                       )}
                     </div>
+
+                    {/* 画像ブロック（表示モード） */}
+                    {section.blocks && section.blocks.length > 0 && (
+                      <div className="mt-3 space-y-4">
+                        {section.blocks.map((block, bIdx) =>
+                          block.type === 'image' && block.value ? (
+                            <div key={bIdx} className="rounded-lg overflow-hidden">
+                              {block.caption && block.captionPosition === 'above' && (
+                                <p className="text-xs text-gray-400 mb-1 px-1">{block.caption}</p>
+                              )}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={block.value}
+                                alt={block.caption || '画像'}
+                                className="w-full rounded-lg"
+                              />
+                              {block.caption && (block.captionPosition || 'below') === 'below' && (
+                                <p className="text-xs text-gray-400 mt-1 px-1">{block.caption}</p>
+                              )}
+                            </div>
+                          ) : null
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
