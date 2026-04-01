@@ -398,7 +398,7 @@ export default function ImageUploader({
       <button
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading}
-        className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
+        className="px-6 py-3 text-base bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
       >
         画像変更
       </button>
@@ -407,8 +407,8 @@ export default function ImageUploader({
           onClick={handleOpenEditor}
           className={
             dark
-              ? 'px-3 py-1.5 text-sm bg-gray-700 text-white rounded-lg hover:bg-gray-600'
-              : 'px-3 py-1.5 text-sm bg-gray-500 text-white rounded-lg hover:bg-gray-400'
+              ? 'px-6 py-3 text-base bg-gray-700 text-white rounded-lg hover:bg-gray-600'
+              : 'px-6 py-3 text-base bg-gray-500 text-white rounded-lg hover:bg-gray-400'
           }
         >
           位置調節
@@ -429,15 +429,15 @@ export default function ImageUploader({
 
     // 画像の left/top（画面座標）
     const imgLeft = icx - dispW / 2
-    const imgTop  = icy - dispH / 2
+    const imgTop = icy - dispH / 2
 
     // 枠の位置・サイズ（px）
     const fw = frameW.current
     const fh = frameH.current
-    const frameLeft   = frameCenterX.current - fw / 2
-    const frameTop    = frameCenterY.current - fh / 2
-    const frameRight  = frameLeft + fw
-    const frameBottom = frameTop  + fh
+    const frameLeft = frameCenterX.current - fw / 2
+    const frameTop = frameCenterY.current - fh / 2
+    const frameRight = frameLeft + fw
+    const frameBottom = frameTop + fh
 
     return (
       <div className="fixed inset-0 z-50">
@@ -538,7 +538,7 @@ export default function ImageUploader({
               <span className="text-gray-400 text-sm">画像準備中</span>
             </div>
           )}
-          <div className="absolute bottom-3 left-3">
+          <div className="absolute inset-0 flex items-center justify-center">
             {renderButtons(true)}
           </div>
           {error && (

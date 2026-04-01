@@ -98,17 +98,13 @@ export default function MemberDetailPage() {
   }
 
   const handleUpdate = (field: keyof Member, value: string | number) => {
-    if (member) {
-      setMember({ ...member, [field]: value })
-      setHasUnsavedChanges(true)
-    }
+    setMember(prev => prev ? { ...prev, [field]: value } : prev)
+    setHasUnsavedChanges(true)
   }
 
   const handleUpdateSections = (newSections: ProfileSection[]) => {
-    if (member) {
-      setMember({ ...member, sections: newSections })
-      setHasUnsavedChanges(true)
-    }
+    setMember(prev => prev ? { ...prev, sections: newSections } : prev)
+    setHasUnsavedChanges(true)
   }
 
   if (loading) {
@@ -475,7 +471,7 @@ export default function MemberDetailPage() {
                                 className="w-full rounded-lg"
                               />
                               {block.caption && (block.captionPosition || 'below') === 'below' && (
-                                <p className="text-xs text-gray-400 mt-1 px-1">{block.caption}</p>
+                                <p className="text-sm text-gray-400 mt-1 px-1">{block.caption}</p>
                               )}
                             </div>
                           ) : null
