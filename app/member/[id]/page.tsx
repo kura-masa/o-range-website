@@ -451,7 +451,7 @@ export default function MemberDetailPage() {
                           ) : null
                         )
                       ) : (
-                        <span className="text-gray-500">未設定</span>
+                        <span className="text-gray-500"></span>
                       )}
                     </div>
 
