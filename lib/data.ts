@@ -1,13 +1,13 @@
 // プロフィールセクションのカテゴリ一覧
-export const SECTION_CATEGORIES = ['趣味', '展望', '経歴', '制作物', 'やってみたいこと', '思い', '考え'] as const
+export const SECTION_CATEGORIES = ['経歴', '制作物', 'やってみたいこと', '思い'] as const
 export type SectionCategory = typeof SECTION_CATEGORIES[number]
 export const CUSTOM_CATEGORY = '__custom__' // 自由入力判定用
 
 export interface ContentBlock {
   type: 'image'
   value: string           // 画像URL
-  caption?: string        // キャプション
-  captionPosition?: 'above' | 'below'  // キャプション位置
+  caption?: string        // 説明文
+  captionPosition?: 'above' | 'below'  // 説明文位置
 }
 
 export interface ProfileSection {

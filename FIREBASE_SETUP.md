@@ -94,7 +94,7 @@ service firebase.storage {
     match /members/{memberId}/{imageFile} {
       allow read: if true;
       allow write: if request.auth != null
-                   && request.resource.size < 5 * 1024 * 1024 // 5MB以下
+                   && request.resource.size < 20 * 1024 * 1024 // 20MB以下
                    && request.resource.contentType.matches('image/.*');
     }
   }

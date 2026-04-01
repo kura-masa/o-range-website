@@ -9,12 +9,12 @@ function getStorageInstance(): FirebaseStorage | null {
   if (typeof window === 'undefined' || !isFirebaseConfigured() || !app) {
     return null
   }
-  
+
   if (!storage) {
     storage = getStorage(app)
     console.log('✅ Storage instance created')
   }
-  
+
   return storage
 }
 
@@ -35,7 +35,7 @@ export async function uploadImage(
   try {
     const storageInstance = getStorageInstance()
     if (!storageInstance) throw new Error('Storage not available')
-    
+
     const storageRef = ref(storageInstance, path)
     const snapshot = await uploadBytes(storageRef, file)
     const downloadURL = await getDownloadURL(snapshot.ref)
@@ -77,7 +77,7 @@ export async function deleteImage(imageUrl: string): Promise<void> {
   try {
     const storageInstance = getStorageInstance()
     if (!storageInstance) throw new Error('Storage not available')
-    
+
     // Firebase StorageのURLから参照を取得
     const imageRef = ref(storageInstance, imageUrl)
     await deleteObject(imageRef)
@@ -90,7 +90,7 @@ export async function deleteImage(imageUrl: string): Promise<void> {
 
 // ファイルサイズとタイプの検証
 export function validateImageFile(file: File): { valid: boolean; error?: string } {
-  const maxSize = 5 * 1024 * 1024 // 5MB
+  const maxSize = 20 * 1024 * 1024 // 20MB
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 
   if (!allowedTypes.includes(file.type)) {
@@ -103,7 +103,7 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: 'ファイルサイズは5MB以下にしてください'
+      error: 'ファイルサイズは20MB以下にしてください'
     }
   }
 

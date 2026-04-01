@@ -303,7 +303,7 @@ export default function MemberDetailPage() {
                         handleUpdateSections(newSections)
                       }}
                       className="w-full bg-[#111118] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 outline-none min-h-[120px] resize-none"
-                      placeholder="内容を入力してください&#10;リンクは [表示テキスト](URL) の形式で埋め込めます"
+                      placeholder="リンクは [表示テキスト](URL) の形式で埋め込めます"
                     />
 
                     {/* 画像ブロック一覧（編集モード） */}
@@ -364,7 +364,7 @@ export default function MemberDetailPage() {
                             </label>
                           </div>
                         )}
-                        {/* キャプション入力 */}
+                        {/* 説明文入力 */}
                         <input
                           type="text"
                           value={block.caption || ''}
@@ -376,11 +376,11 @@ export default function MemberDetailPage() {
                             handleUpdateSections(newSections)
                           }}
                           className="w-full bg-[#0a0a0f] border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 outline-none mb-2"
-                          placeholder="キャプション（任意）"
+                          placeholder="説明文（任意）"
                         />
-                        {/* キャプション位置 */}
+                        {/* 説明文位置 */}
                         <div className="flex items-center gap-3 text-xs text-gray-400">
-                          <span>キャプション位置:</span>
+                          <span>説明文位置:</span>
                           <label className="flex items-center gap-1 cursor-pointer">
                             <input
                               type="radio"

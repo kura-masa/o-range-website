@@ -579,7 +579,7 @@ export default function ImageUploader({
         {renderButtons(false)}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {variant === 'default' && (
-          <p className="text-xs text-gray-500">JPEG、PNG、WebP形式 / 最大5MB</p>
+          <p className="text-xs text-gray-500">JPEG、PNG、WebP形式 / 最大20MB</p>
         )}
       </div>
       {renderEditor()}
