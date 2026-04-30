@@ -438,22 +438,6 @@ export default function MemberDetailPage() {
                               className="flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
                               placeholder="ここに書いてください"
                             />
-                            {lines.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newLines = [...lines]
-                                  newLines.splice(lIdx, 1)
-                                  const newSections = [...(member.sections || [])]
-                                  newSections[index] = { ...newSections[index], content: newLines.join('\n') }
-                                  handleUpdateSections(newSections)
-                                }}
-                                className="text-gray-600 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                                title="この行を削除"
-                              >
-                                ✕
-                              </button>
-                            )}
                           </div>
                         ))
                       })()}
