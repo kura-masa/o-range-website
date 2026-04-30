@@ -104,6 +104,7 @@ export default function Home() {
                   member={member}
                   isEditing={isEditMode}
                   onUpdate={handleUpdateMember}
+                  onSave={handleSave}
                 />
               </div>
             ))}
