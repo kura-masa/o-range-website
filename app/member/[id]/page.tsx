@@ -345,6 +345,35 @@ export default function MemberDetailPage() {
                           placeholder="タイトルを入力"
                         />
                       )}
+                      {/* 並び替えボタン */}
+                      <div className="flex items-center gap-0.5 ml-auto">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => {
+                            const newSections = [...(member.sections || [])]
+                            ;[newSections[index - 1], newSections[index]] = [newSections[index], newSections[index - 1]]
+                            handleUpdateSections(newSections)
+                          }}
+                          className="text-gray-400 hover:text-orange-primary disabled:text-gray-700 disabled:cursor-not-allowed text-sm px-1.5 py-1 rounded border border-gray-600 hover:border-orange-primary/50 disabled:border-gray-800 transition-colors"
+                          title="上へ移動"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === (member.sections || []).length - 1}
+                          onClick={() => {
+                            const newSections = [...(member.sections || [])]
+                            ;[newSections[index], newSections[index + 1]] = [newSections[index + 1], newSections[index]]
+                            handleUpdateSections(newSections)
+                          }}
+                          className="text-gray-400 hover:text-orange-primary disabled:text-gray-700 disabled:cursor-not-allowed text-sm px-1.5 py-1 rounded border border-gray-600 hover:border-orange-primary/50 disabled:border-gray-800 transition-colors"
+                          title="下へ移動"
+                        >
+                          ▼
+                        </button>
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
