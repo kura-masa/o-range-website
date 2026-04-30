@@ -15,6 +15,8 @@ interface ImageUploaderProps {
   label: string
   variant?: 'default' | 'compact' | 'overlay'
   frameAspect?: number  // 枠のアスペクト比 width/height（デフォルト1=正方形）
+  autoOpenFilePicker?: boolean  // マウント時にファイル選択を自動で開く
+  onDismiss?: () => void        // 自動ファイル選択がキャンセルされた時のコールバック
 }
 
 // offsetX, offsetY（枠幅基準の比率）+ scale + nw + nh → 表示用CSS
@@ -100,6 +102,8 @@ export default function ImageUploader({
   label,
   variant = 'default',
   frameAspect = 1,
+  autoOpenFilePicker = false,
+  onDismiss,
 }: ImageUploaderProps) {
   const [preview, setPreview] = useState<string | undefined>(currentImage)
   const [uploading, setUploading] = useState(false)
@@ -367,6 +371,7 @@ export default function ImageUploader({
         setPreview(currentImage)
         setPendingFile(null)
         setEditorOpen(false)
+        onDismiss?.()
         return
       } finally {
         setUploading(false)
@@ -384,7 +389,33 @@ export default function ImageUploader({
     }
     setEditorOpen(false)
     setError('')
+    // autoOpenFilePickerモードでエディタをキャンセルした場合、親に通知
+    if (autoOpenFilePicker) {
+      onDismiss?.()
+    }
   }
+
+  // autoOpenFilePicker: マウント時にファイル選択ダイアログを自動で開く
+  useEffect(() => {
+    if (!autoOpenFilePicker) return
+    // 少し遅延してからファイル入力をクリック
+    const timer = setTimeout(() => {
+      fileInputRef.current?.click()
+    }, 100)
+
+    // ファイル選択ダイアログがキャンセルされた場合の検出
+    const input = fileInputRef.current
+    const handleInputCancel = () => {
+      onDismiss?.()
+    }
+    input?.addEventListener('cancel', handleInputCancel)
+
+    return () => {
+      clearTimeout(timer)
+      input?.removeEventListener('cancel', handleInputCancel)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenFilePicker])
 
   const renderButtons = (dark = false) => (
     <div className="flex gap-2">
