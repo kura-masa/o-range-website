@@ -385,21 +385,84 @@ export default function MemberDetailPage() {
                         ✕ 削除
                       </button>
                     </div>
-                    {/* リンク記法ヒント */}
-                    <div className="text-xs text-gray-500 mb-1 flex items-center gap-1">
-                      <span>💡</span>
-                      <span>リンク記法: <code className="bg-[#1a1a2e] px-1 py-0.5 rounded text-orange-400/70">[表示テキスト](URL)</code></span>
+                    {/* 箇条書きエディタ */}
+                    <div className="w-full bg-[#111118] border border-gray-700 rounded-lg px-3 py-3 space-y-1">
+                      {(() => {
+                        const lines = section.content ? section.content.split('\n') : ['']
+                        return lines.map((line, lIdx) => (
+                          <div key={lIdx} className="flex items-center gap-1.5 group">
+                            <span className="text-orange-primary flex-shrink-0 text-sm select-none">◎</span>
+                            <input
+                              type="text"
+                              value={line}
+                              onChange={(e) => {
+                                const newLines = [...lines]
+                                newLines[lIdx] = e.target.value
+                                const newSections = [...(member.sections || [])]
+                                newSections[index] = { ...newSections[index], content: newLines.join('\n') }
+                                handleUpdateSections(newSections)
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  const newLines = [...lines]
+                                  newLines.splice(lIdx + 1, 0, '')
+                                  const newSections = [...(member.sections || [])]
+                                  newSections[index] = { ...newSections[index], content: newLines.join('\n') }
+                                  handleUpdateSections(newSections)
+                                  // 次の行にフォーカス
+                                  setTimeout(() => {
+                                    const parent = (e.target as HTMLElement).closest('.space-y-1')
+                                    const inputs = parent?.querySelectorAll<HTMLInputElement>('input[type="text"]')
+                                    inputs?.[lIdx + 1]?.focus()
+                                  }, 0)
+                                } else if (e.key === 'Backspace' && line === '' && lines.length > 1) {
+                                  e.preventDefault()
+                                  const newLines = [...lines]
+                                  newLines.splice(lIdx, 1)
+                                  const newSections = [...(member.sections || [])]
+                                  newSections[index] = { ...newSections[index], content: newLines.join('\n') }
+                                  handleUpdateSections(newSections)
+                                  // 前の行にフォーカス
+                                  setTimeout(() => {
+                                    const parent = (e.target as HTMLElement).closest('.space-y-1')
+                                    const inputs = parent?.querySelectorAll<HTMLInputElement>('input[type="text"]')
+                                    const target = inputs?.[Math.max(0, lIdx - 1)]
+                                    if (target) {
+                                      target.focus()
+                                      target.setSelectionRange(target.value.length, target.value.length)
+                                    }
+                                  }, 0)
+                                }
+                              }}
+                              className="flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
+                              placeholder="ここに書いてください"
+                            />
+                            {lines.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newLines = [...lines]
+                                  newLines.splice(lIdx, 1)
+                                  const newSections = [...(member.sections || [])]
+                                  newSections[index] = { ...newSections[index], content: newLines.join('\n') }
+                                  handleUpdateSections(newSections)
+                                }}
+                                className="text-gray-600 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                title="この行を削除"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      })()}
                     </div>
-                    <textarea
-                      value={section.content}
-                      onChange={(e) => {
-                        const newSections = [...(member.sections || [])]
-                        newSections[index] = { ...newSections[index], content: e.target.value }
-                        handleUpdateSections(newSections)
-                      }}
-                      className="w-full bg-[#111118] border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-200 outline-none min-h-[120px] resize-none"
-                      placeholder="リンクは [表示テキスト](URL) の形式で埋め込めます"
-                    />
+                    {/* リンク記法ヒント */}
+                    <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                      <span>＊</span>
+                      <span>リンクは <code className="bg-[#1a1a2e] px-1 py-0.5 rounded text-orange-400/70">[表示テキスト](URL)</code> の形式で埋め込めます</span>
+                    </div>
 
                     {/* 画像ブロック一覧（編集モード） */}
                     {(section.blocks || []).map((block, bIdx) => (
