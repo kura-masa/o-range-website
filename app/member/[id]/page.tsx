@@ -97,7 +97,7 @@ export default function MemberDetailPage() {
     disableEditMode()
   }
 
-  const handleUpdate = (field: keyof Member, value: string | number) => {
+  const handleUpdate = (field: keyof Member, value: string | number | boolean) => {
     setMember(prev => prev ? { ...prev, [field]: value } : prev)
     setHasUnsavedChanges(true)
   }
@@ -188,6 +188,72 @@ export default function MemberDetailPage() {
             </h1>
           )}
         </div>
+
+        {/* TEL / E-Mail（名前と基本情報の間） */}
+        {isEditMode ? (
+          <div className="mb-4 space-y-2">
+            {/* TEL 編集 */}
+            <div className="flex items-center justify-center gap-2">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={member.showTel ?? false}
+                  onChange={(e) => handleUpdate('showTel', e.target.checked)}
+                  className="accent-orange-500 w-4 h-4"
+                />
+                <span className="text-xs text-gray-400">表示</span>
+              </label>
+              <span className="text-orange-primary">📞</span>
+              <span className="text-sm text-gray-400 w-14 text-right flex-shrink-0">TEL:</span>
+              <input
+                type="text"
+                value={member.tel || ''}
+                onChange={(e) => handleUpdate('tel', e.target.value)}
+                className="bg-transparent border-b border-gray-600 text-sm text-white outline-none w-48 text-center"
+                placeholder="例）090-1234-5678"
+              />
+            </div>
+            {/* E-Mail 編集 */}
+            <div className="flex items-center justify-center gap-2">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={member.showEmail ?? false}
+                  onChange={(e) => handleUpdate('showEmail', e.target.checked)}
+                  className="accent-orange-500 w-4 h-4"
+                />
+                <span className="text-xs text-gray-400">表示</span>
+              </label>
+              <span className="text-orange-primary">✉️</span>
+              <span className="text-sm text-gray-400 w-14 text-right flex-shrink-0">E-Mail:</span>
+              <input
+                type="text"
+                value={member.email || ''}
+                onChange={(e) => handleUpdate('email', e.target.value)}
+                className="bg-transparent border-b border-gray-600 text-sm text-white outline-none w-48 text-center"
+                placeholder="例）example@mail.com"
+              />
+            </div>
+          </div>
+        ) : (
+          /* 表示モード: showTel / showEmail がtrueの場合のみ表示 */
+          (member.showTel || member.showEmail) && (
+            <div className="mb-4 space-y-1 text-sm text-gray-300 text-center">
+              {member.showTel && member.tel && (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-orange-primary">📞</span>
+                  <span>TEL：<span className="border-b border-white pb-0.5 px-1">{member.tel}</span></span>
+                </div>
+              )}
+              {member.showEmail && member.email && (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-orange-primary">✉️</span>
+                  <span>E-Mail：<span className="border-b border-white pb-0.5 px-1">{member.email}</span></span>
+                </div>
+              )}
+            </div>
+          )
+        )}
 
         {/* 基本情報 */}
         <div className="mb-8 space-y-1 text-sm text-gray-300 text-center">

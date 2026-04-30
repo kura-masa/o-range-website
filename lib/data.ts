@@ -28,6 +28,10 @@ export interface Member {
   imageNo1Scale?: number    // ズーム倍率 例: 1.5
   imageNo2Scale?: number    // ズーム倍率 例: 1.5
   birthDate?: string
+  tel?: string             // 電話番号
+  email?: string           // メールアドレス
+  showTel?: boolean        // TELを表示するか
+  showEmail?: boolean      // E-Mailを表示するか
   hometown?: string
   hobbies?: string
   sections?: ProfileSection[] // 選択式プロフィールセクション
