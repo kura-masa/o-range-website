@@ -54,16 +54,16 @@ export default function BulletListEditor({ value, onChange, placeholder }: Props
     return pos
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Backspace') return
-    const ta = e.currentTarget
+  // Backspaceの特殊処理（◎の削除/行連結）
+  // PC: keydown 経由でも来る。Android Gboard 等: keydown が来ないので beforeInput を使う
+  const handleBackspace = (ta: HTMLTextAreaElement, preventDefault: () => void): boolean => {
     const start = ta.selectionStart ?? 0
     const endPos = ta.selectionEnd ?? 0
-    if (start !== endPos) return
+    if (start !== endPos) return false
     const { lineIdx, offsetInLine, lines: displayLines } = findLine(ta.value, start)
     const dispLine = displayLines[lineIdx] ?? ''
-    if (!dispLine.startsWith('◎ ')) return
-    if (offsetInLine > 2) return // ◎ 領域でなければ通常Backspace
+    if (!dispLine.startsWith('◎ ')) return false
+    if (offsetInLine > 2) return false
 
     const cleanLines = displayLines.map(stripPrefix)
     const thisContent = cleanLines[lineIdx] ?? ''
@@ -71,24 +71,37 @@ export default function BulletListEditor({ value, onChange, placeholder }: Props
     if (lineIdx === 0) {
       // 先頭行：空の◎なら行ごと削除、それ以外は何もしない（誤消去防止）
       if (thisContent === '' && cleanLines.length > 1) {
-        e.preventDefault()
+        preventDefault()
         const newLines = cleanLines.slice(1)
         pendingCursorRef.current = toDisplayPos(newLines, 0, 0)
         onChange(newLines.join('\n'))
       } else {
-        e.preventDefault()
+        preventDefault()
       }
-      return
+      return true
     }
 
     // 非先頭行：上の行末と連結（◎は消す）
-    e.preventDefault()
+    preventDefault()
     const prevContent = cleanLines[lineIdx - 1] ?? ''
     const merged = prevContent + thisContent
     const newLines = [...cleanLines]
     newLines.splice(lineIdx - 1, 2, merged)
     pendingCursorRef.current = toDisplayPos(newLines, lineIdx - 1, prevContent.length)
     onChange(newLines.join('\n'))
+    return true
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Backspace') return
+    handleBackspace(e.currentTarget, () => e.preventDefault())
+  }
+
+  const handleBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const inputType = (e.nativeEvent as InputEvent).inputType
+    if (inputType === 'deleteContentBackward') {
+      handleBackspace(e.currentTarget, () => e.preventDefault())
+    }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -125,6 +138,7 @@ export default function BulletListEditor({ value, onChange, placeholder }: Props
       ref={taRef}
       value={displayValue}
       onKeyDown={handleKeyDown}
+      onBeforeInput={handleBeforeInput}
       onChange={handleChange}
       rows={Math.max(3, value.split('\n').length)}
       className="w-full bg-[#111118] border border-gray-700 rounded-lg px-3 py-3 text-sm text-gray-200 outline-none placeholder-gray-600 resize-y leading-relaxed"
