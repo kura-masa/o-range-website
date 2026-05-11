@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = (id: string, memberId: string, memberName: string) => {
     // シンプルなID認証（本番環境では適切な認証を実装）
-    const validIds = ['admin', 'orange-admin', 'o-range']
+    const validIds = ['cicada']
     
     if (validIds.includes(id.toLowerCase())) {
       setIsAuthenticated(true)

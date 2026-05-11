@@ -199,10 +199,6 @@ export default function LoginModal({ onClose, onSuccess, redirectTo, onMemberAut
           </form>
         )}
 
-        <div className="mt-4 p-3 bg-gray-50 rounded text-xs text-gray-600">
-          <p className="font-semibold mb-1">デモ用パスワード:</p>
-          <p>admin / orange-admin / o-range</p>
-        </div>
       </div>
     </div>
   )
