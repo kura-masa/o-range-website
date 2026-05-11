@@ -166,8 +166,8 @@ export default function MemberDetailPage() {
     setMember(prev => prev ? { ...prev, [field]: value } : prev)
   }
 
-  const handleUpdateSections = (newSections: ProfileSection[]) => {
-    setMember(prev => prev ? { ...prev, sections: newSections } : prev)
+  const handleUpdateSections = (updater: (prev: ProfileSection[]) => ProfileSection[]) => {
+    setMember(prev => prev ? { ...prev, sections: updater(prev.sections || []) } : prev)
   }
 
   if (loading) {
@@ -380,13 +380,15 @@ export default function MemberDetailPage() {
                       <select
                         value={(SECTION_CATEGORIES as readonly string[]).includes(section.category) ? section.category : CUSTOM_CATEGORY}
                         onChange={(e) => {
-                          const newSections = [...(member.sections || [])]
-                          if (e.target.value === CUSTOM_CATEGORY) {
-                            newSections[index] = { ...newSections[index], category: '' }
-                          } else {
-                            newSections[index] = { ...newSections[index], category: e.target.value }
-                          }
-                          handleUpdateSections(newSections)
+                          handleUpdateSections(prev => {
+                            const newSections = [...prev]
+                            if (e.target.value === CUSTOM_CATEGORY) {
+                              newSections[index] = { ...newSections[index], category: '' }
+                            } else {
+                              newSections[index] = { ...newSections[index], category: e.target.value }
+                            }
+                            return newSections
+                          })
                         }}
                         className="bg-[#111118] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-orange-primary font-bold outline-none"
                       >
@@ -400,9 +402,11 @@ export default function MemberDetailPage() {
                           type="text"
                           value={section.category}
                           onChange={(e) => {
-                            const newSections = [...(member.sections || [])]
-                            newSections[index] = { ...newSections[index], category: e.target.value }
-                            handleUpdateSections(newSections)
+                            handleUpdateSections(prev => {
+                              const newSections = [...prev]
+                              newSections[index] = { ...newSections[index], category: e.target.value }
+                              return newSections
+                            })
                           }}
                           className="bg-[#111118] border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-orange-primary font-bold outline-none flex-1 min-w-[120px]"
                           placeholder="タイトルを入力"
@@ -414,9 +418,11 @@ export default function MemberDetailPage() {
                           type="button"
                           disabled={index === 0}
                           onClick={() => {
-                            const newSections = [...(member.sections || [])]
-                            ;[newSections[index - 1], newSections[index]] = [newSections[index], newSections[index - 1]]
-                            handleUpdateSections(newSections)
+                            handleUpdateSections(prev => {
+                              const newSections = [...prev]
+                              ;[newSections[index - 1], newSections[index]] = [newSections[index], newSections[index - 1]]
+                              return newSections
+                            })
                           }}
                           className="text-gray-400 hover:text-orange-primary disabled:text-gray-700 disabled:cursor-not-allowed text-sm px-1.5 py-1 rounded border border-gray-600 hover:border-orange-primary/50 disabled:border-gray-800 transition-colors"
                           title="上へ移動"
@@ -427,9 +433,11 @@ export default function MemberDetailPage() {
                           type="button"
                           disabled={index === (member.sections || []).length - 1}
                           onClick={() => {
-                            const newSections = [...(member.sections || [])]
-                            ;[newSections[index], newSections[index + 1]] = [newSections[index + 1], newSections[index]]
-                            handleUpdateSections(newSections)
+                            handleUpdateSections(prev => {
+                              const newSections = [...prev]
+                              ;[newSections[index], newSections[index + 1]] = [newSections[index + 1], newSections[index]]
+                              return newSections
+                            })
                           }}
                           className="text-gray-400 hover:text-orange-primary disabled:text-gray-700 disabled:cursor-not-allowed text-sm px-1.5 py-1 rounded border border-gray-600 hover:border-orange-primary/50 disabled:border-gray-800 transition-colors"
                           title="下へ移動"
@@ -440,8 +448,7 @@ export default function MemberDetailPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          const newSections = (member.sections || []).filter((_, i) => i !== index)
-                          handleUpdateSections(newSections)
+                          handleUpdateSections(prev => prev.filter((_, i) => i !== index))
                         }}
                         className="text-red-400 hover:text-red-300 text-sm px-2 py-1 rounded border border-red-400/30 hover:border-red-300/50 transition-colors"
                       >
@@ -461,9 +468,11 @@ export default function MemberDetailPage() {
                               onChange={(e) => {
                                 const newLines = [...lines]
                                 newLines[lIdx] = e.target.value
-                                const newSections = [...(member.sections || [])]
-                                newSections[index] = { ...newSections[index], content: newLines.join('\n') }
-                                handleUpdateSections(newSections)
+                                handleUpdateSections(prev => {
+                                  const newSections = [...prev]
+                                  newSections[index] = { ...newSections[index], content: newLines.join('\n') }
+                                  return newSections
+                                })
                               }}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
@@ -475,9 +484,11 @@ export default function MemberDetailPage() {
                                   const newLines = [...lines]
                                   newLines[lIdx] = before
                                   newLines.splice(lIdx + 1, 0, after)
-                                  const newSections = [...(member.sections || [])]
-                                  newSections[index] = { ...newSections[index], content: newLines.join('\n') }
-                                  handleUpdateSections(newSections)
+                                  handleUpdateSections(prev => {
+                                    const newSections = [...prev]
+                                    newSections[index] = { ...newSections[index], content: newLines.join('\n') }
+                                    return newSections
+                                  })
                                   // 次の行の先頭にフォーカス
                                   setTimeout(() => {
                                     const parent = (e.target as HTMLElement).closest('.space-y-1')
@@ -492,9 +503,11 @@ export default function MemberDetailPage() {
                                   e.preventDefault()
                                   const newLines = [...lines]
                                   newLines.splice(lIdx, 1)
-                                  const newSections = [...(member.sections || [])]
-                                  newSections[index] = { ...newSections[index], content: newLines.join('\n') }
-                                  handleUpdateSections(newSections)
+                                  handleUpdateSections(prev => {
+                                    const newSections = [...prev]
+                                    newSections[index] = { ...newSections[index], content: newLines.join('\n') }
+                                    return newSections
+                                  })
                                   // 前の行にフォーカス
                                   setTimeout(() => {
                                     const parent = (e.target as HTMLElement).closest('.space-y-1')
@@ -528,11 +541,13 @@ export default function MemberDetailPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              const newSections = [...(member.sections || [])]
-                              const newBlocks = [...(newSections[index].blocks || [])]
-                              newBlocks.splice(bIdx, 1)
-                              newSections[index] = { ...newSections[index], blocks: newBlocks }
-                              handleUpdateSections(newSections)
+                              handleUpdateSections(prev => {
+                                const newSections = [...prev]
+                                const newBlocks = [...(newSections[index].blocks || [])]
+                                newBlocks.splice(bIdx, 1)
+                                newSections[index] = { ...newSections[index], blocks: newBlocks }
+                                return newSections
+                              })
                             }}
                             className="text-red-400 hover:text-red-300 text-xs px-2 py-0.5 rounded border border-red-400/30 hover:border-red-300/50 transition-colors"
                           >
@@ -564,11 +579,13 @@ export default function MemberDetailPage() {
                                   }
                                   try {
                                     const url = await uploadSectionImage(member.id, file, index)
-                                    const newSections = [...(member.sections || [])]
-                                    const newBlocks = [...(newSections[index].blocks || [])]
-                                    newBlocks[bIdx] = { ...newBlocks[bIdx], value: url }
-                                    newSections[index] = { ...newSections[index], blocks: newBlocks }
-                                    handleUpdateSections(newSections)
+                                    handleUpdateSections(prev => {
+                                      const newSections = [...prev]
+                                      const newBlocks = [...(newSections[index].blocks || [])]
+                                      newBlocks[bIdx] = { ...newBlocks[bIdx], value: url }
+                                      newSections[index] = { ...newSections[index], blocks: newBlocks }
+                                      return newSections
+                                    })
                                     showToast('success', '画像をアップロードしました')
                                   } catch {
                                     showToast('error', '画像のアップロードに失敗しました')
@@ -583,11 +600,13 @@ export default function MemberDetailPage() {
                           type="text"
                           value={block.caption || ''}
                           onChange={(e) => {
-                            const newSections = [...(member.sections || [])]
-                            const newBlocks = [...(newSections[index].blocks || [])]
-                            newBlocks[bIdx] = { ...newBlocks[bIdx], caption: e.target.value }
-                            newSections[index] = { ...newSections[index], blocks: newBlocks }
-                            handleUpdateSections(newSections)
+                            handleUpdateSections(prev => {
+                              const newSections = [...prev]
+                              const newBlocks = [...(newSections[index].blocks || [])]
+                              newBlocks[bIdx] = { ...newBlocks[bIdx], caption: e.target.value }
+                              newSections[index] = { ...newSections[index], blocks: newBlocks }
+                              return newSections
+                            })
                           }}
                           className="w-full bg-[#0a0a0f] border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 outline-none mb-2"
                           placeholder="説明文（任意）"
@@ -601,11 +620,13 @@ export default function MemberDetailPage() {
                               name={`caption-pos-${index}-${bIdx}`}
                               checked={(block.captionPosition || 'below') === 'above'}
                               onChange={() => {
-                                const newSections = [...(member.sections || [])]
-                                const newBlocks = [...(newSections[index].blocks || [])]
-                                newBlocks[bIdx] = { ...newBlocks[bIdx], captionPosition: 'above' }
-                                newSections[index] = { ...newSections[index], blocks: newBlocks }
-                                handleUpdateSections(newSections)
+                                handleUpdateSections(prev => {
+                                  const newSections = [...prev]
+                                  const newBlocks = [...(newSections[index].blocks || [])]
+                                  newBlocks[bIdx] = { ...newBlocks[bIdx], captionPosition: 'above' }
+                                  newSections[index] = { ...newSections[index], blocks: newBlocks }
+                                  return newSections
+                                })
                               }}
                               className="accent-orange-500"
                             />
@@ -617,11 +638,13 @@ export default function MemberDetailPage() {
                               name={`caption-pos-${index}-${bIdx}`}
                               checked={(block.captionPosition || 'below') === 'below'}
                               onChange={() => {
-                                const newSections = [...(member.sections || [])]
-                                const newBlocks = [...(newSections[index].blocks || [])]
-                                newBlocks[bIdx] = { ...newBlocks[bIdx], captionPosition: 'below' }
-                                newSections[index] = { ...newSections[index], blocks: newBlocks }
-                                handleUpdateSections(newSections)
+                                handleUpdateSections(prev => {
+                                  const newSections = [...prev]
+                                  const newBlocks = [...(newSections[index].blocks || [])]
+                                  newBlocks[bIdx] = { ...newBlocks[bIdx], captionPosition: 'below' }
+                                  newSections[index] = { ...newSections[index], blocks: newBlocks }
+                                  return newSections
+                                })
                               }}
                               className="accent-orange-500"
                             />
@@ -635,10 +658,12 @@ export default function MemberDetailPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const newSections = [...(member.sections || [])]
-                        const newBlocks: ContentBlock[] = [...(newSections[index].blocks || []), { type: 'image', value: '', caption: '', captionPosition: 'below' }]
-                        newSections[index] = { ...newSections[index], blocks: newBlocks }
-                        handleUpdateSections(newSections)
+                        handleUpdateSections(prev => {
+                          const newSections = [...prev]
+                          const newBlocks: ContentBlock[] = [...(newSections[index].blocks || []), { type: 'image', value: '', caption: '', captionPosition: 'below' }]
+                          newSections[index] = { ...newSections[index], blocks: newBlocks }
+                          return newSections
+                        })
                       }}
                       className="mt-2 w-full py-2 border border-dashed border-gray-600 rounded-lg text-gray-400 hover:text-orange-primary hover:border-orange-primary/50 transition-colors text-xs font-semibold"
                     >
@@ -702,8 +727,7 @@ export default function MemberDetailPage() {
               <button
                 type="button"
                 onClick={() => {
-                  const newSections = [...(member.sections || []), { category: '趣味' as const, content: '' }]
-                  handleUpdateSections(newSections)
+                  handleUpdateSections(prev => [...prev, { category: '趣味' as const, content: '' }])
                 }}
                 className="w-full py-3 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:text-orange-primary hover:border-orange-primary/50 transition-colors text-sm font-semibold"
               >
