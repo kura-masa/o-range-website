@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useLayoutEffect } from 'react'
+import { useRef, useEffect } from 'react'
 
 interface Props {
   value: string
@@ -8,141 +8,157 @@ interface Props {
   placeholder?: string
 }
 
-// 各行の頭に「◎ 」を表示するテキストエリア
-// データ層には◎を含まないクリーンな内容（行は \n 区切り）を保持
+// 1行 = 1 input の「行コントロール型」箇条書きエディタ
+// - ◎ は input の値に含まない（独立した装飾要素）
+// - Enter で新規行追加（PCで動く / Androidは + ボタンで代替）
+// - 空行で Backspace → 行削除 + 前行末にフォーカス（iOS/PC では動く / Android は × ボタンで救済）
+// - ↑↓ 矢印で行間移動
+// - 各行に × ボタン、末尾に + ボタン
 export default function BulletListEditor({ value, onChange, placeholder }: Props) {
-  const taRef = useRef<HTMLTextAreaElement>(null)
-  const pendingCursorRef = useRef<number | null>(null)
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([])
+  const focusTargetRef = useRef<{ index: number; caret: 'start' | 'end' } | null>(null)
 
-  const displayValue = value.split('\n').map(l => `◎ ${l}`).join('\n')
+  const lines = value.length > 0 ? value.split('\n') : ['']
 
-  useLayoutEffect(() => {
-    if (pendingCursorRef.current !== null && taRef.current) {
-      const pos = pendingCursorRef.current
-      try {
-        taRef.current.setSelectionRange(pos, pos)
-      } catch {}
-      pendingCursorRef.current = null
+  useEffect(() => {
+    if (focusTargetRef.current) {
+      const { index, caret } = focusTargetRef.current
+      const el = inputRefs.current[index]
+      if (el) {
+        el.focus()
+        const pos = caret === 'end' ? el.value.length : 0
+        try {
+          el.setSelectionRange(pos, pos)
+        } catch {}
+      }
+      focusTargetRef.current = null
     }
   })
 
-  // (lineIdx, offsetInLine) を計算
-  const findLine = (text: string, pos: number) => {
-    const lines = text.split('\n')
-    let lineIdx = 0
-    let offsetInLine = pos
-    for (let i = 0; i < lines.length; i++) {
-      const lineLen = lines[i].length
-      if (offsetInLine <= lineLen) {
-        lineIdx = i
-        return { lineIdx, offsetInLine, lines }
+  const update = (next: string[]) => {
+    onChange(next.join('\n'))
+  }
+
+  const handleLineChange = (i: number, newValue: string) => {
+    const next = [...lines]
+    next[i] = newValue
+    update(next)
+  }
+
+  const handleAddBelow = (i: number) => {
+    const next = [...lines]
+    next.splice(i + 1, 0, '')
+    focusTargetRef.current = { index: i + 1, caret: 'start' }
+    update(next)
+  }
+
+  const handleAddAtEnd = () => {
+    const next = [...lines, '']
+    focusTargetRef.current = { index: next.length - 1, caret: 'start' }
+    update(next)
+  }
+
+  const handleRemove = (i: number) => {
+    if (lines.length === 1) {
+      // 最後の1行は空にするのみ（完全消去はしない）
+      update([''])
+      focusTargetRef.current = { index: 0, caret: 'start' }
+      return
+    }
+    const next = lines.filter((_, idx) => idx !== i)
+    const focusIdx = Math.max(0, i - 1)
+    focusTargetRef.current = { index: focusIdx, caret: 'end' }
+    update(next)
+  }
+
+  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    // IME変換中は無視
+    if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229) return
+
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAddBelow(i)
+      return
+    }
+
+    if (e.key === 'Backspace') {
+      const el = e.currentTarget
+      // 空行 + 行頭 → 行削除して前の行末へ
+      if (el.value === '' && lines.length > 1) {
+        e.preventDefault()
+        handleRemove(i)
+        return
       }
-      offsetInLine -= lineLen + 1
-      lineIdx = i + 1
-    }
-    return { lineIdx, offsetInLine, lines }
-  }
-
-  const stripPrefix = (l: string) =>
-    l.startsWith('◎ ') ? l.slice(2) : l.startsWith('◎') ? l.slice(1) : l
-
-  // クリーンな lines 配列での (lineIdx, offsetInContent) → 表示値でのカーソル位置
-  const toDisplayPos = (cleanLines: string[], lineIdx: number, offsetInContent: number) => {
-    let pos = 0
-    for (let i = 0; i < lineIdx; i++) pos += (cleanLines[i]?.length ?? 0) + 2 + 1
-    pos += 2 + offsetInContent
-    return pos
-  }
-
-  // Backspaceの特殊処理（◎の削除/行連結）
-  // PC: keydown 経由でも来る。Android Gboard 等: keydown が来ないので beforeInput を使う
-  const handleBackspace = (ta: HTMLTextAreaElement, preventDefault: () => void): boolean => {
-    const start = ta.selectionStart ?? 0
-    const endPos = ta.selectionEnd ?? 0
-    if (start !== endPos) return false
-    const { lineIdx, offsetInLine, lines: displayLines } = findLine(ta.value, start)
-    const dispLine = displayLines[lineIdx] ?? ''
-    if (!dispLine.startsWith('◎ ')) return false
-    if (offsetInLine > 2) return false
-
-    const cleanLines = displayLines.map(stripPrefix)
-    const thisContent = cleanLines[lineIdx] ?? ''
-
-    if (lineIdx === 0) {
-      // 先頭行：空の◎なら行ごと削除、それ以外は何もしない（誤消去防止）
-      if (thisContent === '' && cleanLines.length > 1) {
-        preventDefault()
-        const newLines = cleanLines.slice(1)
-        pendingCursorRef.current = toDisplayPos(newLines, 0, 0)
-        onChange(newLines.join('\n'))
-      } else {
-        preventDefault()
+      // 非空行の先頭でBackspace → 前の行末に連結
+      if ((el.selectionStart ?? 0) === 0 && (el.selectionEnd ?? 0) === 0 && i > 0) {
+        e.preventDefault()
+        const prev = lines[i - 1] ?? ''
+        const cur = lines[i] ?? ''
+        const merged = prev + cur
+        const next = [...lines]
+        next.splice(i - 1, 2, merged)
+        focusTargetRef.current = { index: i - 1, caret: 'end' }
+        // ▼ caret: 'end' だと末尾固定。連結点(=prevの末尾)に当てるため少し調整
+        // 末尾固定でも prev + cur の連結点付近に近い。完全な連結点位置を望むなら独自ロジックを追加
+        update(next)
+        return
       }
-      return true
     }
 
-    // 非先頭行：上の行末と連結（◎は消す）
-    preventDefault()
-    const prevContent = cleanLines[lineIdx - 1] ?? ''
-    const merged = prevContent + thisContent
-    const newLines = [...cleanLines]
-    newLines.splice(lineIdx - 1, 2, merged)
-    pendingCursorRef.current = toDisplayPos(newLines, lineIdx - 1, prevContent.length)
-    onChange(newLines.join('\n'))
-    return true
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Backspace') return
-    handleBackspace(e.currentTarget, () => e.preventDefault())
-  }
-
-  const handleBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    const inputType = (e.nativeEvent as InputEvent).inputType
-    if (inputType === 'deleteContentBackward') {
-      handleBackspace(e.currentTarget, () => e.preventDefault())
-    }
-  }
-
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newDisplay = e.target.value
-    const cursorPos = e.target.selectionStart ?? 0
-    const newDisplayLines = newDisplay.split('\n')
-    const cleanLines = newDisplayLines.map(stripPrefix)
-
-    // 現カーソル位置から (lineIdx, offsetInLine) を求める
-    let cursorLineIdx = 0
-    let cursorOffsetInLine = cursorPos
-    for (let i = 0; i < newDisplayLines.length; i++) {
-      const lineLen = newDisplayLines[i].length
-      if (cursorOffsetInLine <= lineLen) {
-        cursorLineIdx = i
-        break
+    if (e.key === 'ArrowDown') {
+      if (i < lines.length - 1) {
+        e.preventDefault()
+        inputRefs.current[i + 1]?.focus()
       }
-      cursorOffsetInLine -= lineLen + 1
-      cursorLineIdx = i + 1
+      return
     }
-    const dispAtCursor = newDisplayLines[cursorLineIdx] ?? ''
-    const presentPrefixLen = dispAtCursor.startsWith('◎ ')
-      ? 2
-      : dispAtCursor.startsWith('◎')
-      ? 1
-      : 0
-    const cursorInContent = Math.max(0, cursorOffsetInLine - presentPrefixLen)
-    pendingCursorRef.current = toDisplayPos(cleanLines, cursorLineIdx, cursorInContent)
-    onChange(cleanLines.join('\n'))
+    if (e.key === 'ArrowUp') {
+      if (i > 0) {
+        e.preventDefault()
+        inputRefs.current[i - 1]?.focus()
+      }
+      return
+    }
   }
 
   return (
-    <textarea
-      ref={taRef}
-      value={displayValue}
-      onKeyDown={handleKeyDown}
-      onBeforeInput={handleBeforeInput}
-      onChange={handleChange}
-      rows={Math.max(3, value.split('\n').length)}
-      className="w-full bg-[#111118] border border-gray-700 rounded-lg px-3 py-3 text-sm text-gray-200 outline-none placeholder-gray-600 resize-y leading-relaxed"
-      placeholder={placeholder ?? '◎ ここに書いてください'}
-    />
+    <div className="w-full bg-[#111118] border border-gray-700 rounded-lg px-2 py-2 space-y-1">
+      {lines.map((line, i) => (
+        <div key={i} className="flex items-center gap-1.5 group">
+          <button
+            type="button"
+            onClick={() => handleRemove(i)}
+            aria-label="この行を削除"
+            className="w-6 h-6 flex-shrink-0 flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors text-xs select-none"
+            style={{ userSelect: 'none' }}
+          >
+            ×
+          </button>
+          <span className="text-orange-primary flex-shrink-0 text-sm select-none" style={{ userSelect: 'none' }}>
+            ◎
+          </span>
+          <input
+            ref={(el) => { inputRefs.current[i] = el }}
+            type="text"
+            value={line}
+            onChange={(e) => handleLineChange(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            className="flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600 py-1"
+            placeholder={i === 0 ? (placeholder ?? 'ここに書いてください') : ''}
+            style={{ fontSize: '16px' }}
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={handleAddAtEnd}
+        className="ml-7 mt-2 px-3 py-1.5 text-xs font-semibold text-gray-300 bg-gray-800 hover:bg-gray-700 rounded-md transition-colors"
+      >
+        ＋ 行を追加
+      </button>
+    </div>
   )
 }
