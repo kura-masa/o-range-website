@@ -36,3 +36,8 @@ env:
     secret: GEMINI_API_KEY
     availability:
       - RUNTIME
+  - variable: NEXT_PUBLIC_GA_ID
+    value: G-R6SZJH1093
+    availability:
+      - BUILD
+      - RUNTIME

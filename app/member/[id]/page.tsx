@@ -13,6 +13,7 @@ import { Member, ProfileSection, ContentBlock, SECTION_CATEGORIES, CUSTOM_CATEGO
 import { getMember, saveMember } from '@/lib/firestore'
 import { uploadSectionImage, validateImageFile } from '@/lib/storage'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
+import { trackEvent } from '@/lib/analytics'
 
 const AUTO_SAVE_DEBOUNCE_MS = 1500
 const UNDO_HISTORY_LIMIT = 20
@@ -88,6 +89,7 @@ export default function MemberDetailPage() {
       lastSavedRef.current = data
       if (data) {
         console.log(`✅ Loaded member ${id} from Firebase`)
+        trackEvent('member_view', { member_id: data.id, member_name: data.name })
       }
     } catch (error) {
       console.error('Error loading member:', error)
@@ -480,87 +482,31 @@ export default function MemberDetailPage() {
                         ✕ 削除
                       </button>
                     </div>
-                    {/* 箇条書きエディタ */}
-                    <div className="w-full bg-[#111118] border border-gray-700 rounded-lg px-3 py-3 space-y-1">
-                      {(() => {
-                        const lines = section.content ? section.content.split('\n') : ['']
-                        return lines.map((line, lIdx) => (
-                          <div key={lIdx} className="flex items-center gap-1.5 group">
-                            <span className="text-orange-primary flex-shrink-0 text-sm select-none">◎</span>
-                            <input
-                              type="text"
-                              value={line}
-                              onChange={(e) => {
-                                const newLines = [...lines]
-                                newLines[lIdx] = e.target.value
-                                handleUpdateSections(prev => {
-                                  const newSections = [...prev]
-                                  newSections[index] = { ...newSections[index], content: newLines.join('\n') }
-                                  return newSections
-                                })
-                              }}
-                              onKeyDown={(e) => {
-                                // IME変換確定のEnterは無視（日本語入力の確定で誤発火しないように）
-                                if (e.nativeEvent.isComposing || e.keyCode === 229) return
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  const input = e.target as HTMLInputElement
-                                  const currentValue = input.value
-                                  const pos = input.selectionStart ?? currentValue.length
-                                  const before = currentValue.slice(0, pos)
-                                  const after = currentValue.slice(pos)
-                                  handleUpdateSections(prev => {
-                                    const newSections = [...prev]
-                                    const currentLines = (newSections[index]?.content || '').split('\n')
-                                    const newLines = [...currentLines]
-                                    newLines[lIdx] = before
-                                    newLines.splice(lIdx + 1, 0, after)
-                                    newSections[index] = { ...newSections[index], content: newLines.join('\n') }
-                                    return newSections
-                                  })
-                                  // 次の行の先頭にフォーカス
-                                  setTimeout(() => {
-                                    const parent = (e.target as HTMLElement).closest('.space-y-1')
-                                    const inputs = parent?.querySelectorAll<HTMLInputElement>('input[type="text"]')
-                                    const next = inputs?.[lIdx + 1]
-                                    if (next) {
-                                      next.focus()
-                                      next.setSelectionRange(0, 0)
-                                    }
-                                  }, 0)
-                                } else if (e.key === 'Backspace' && (e.target as HTMLInputElement).value === '' && lines.length > 1) {
-                                  e.preventDefault()
-                                  handleUpdateSections(prev => {
-                                    const newSections = [...prev]
-                                    const currentLines = (newSections[index]?.content || '').split('\n')
-                                    const newLines = [...currentLines]
-                                    newLines.splice(lIdx, 1)
-                                    newSections[index] = { ...newSections[index], content: newLines.join('\n') }
-                                    return newSections
-                                  })
-                                  // 前の行にフォーカス
-                                  setTimeout(() => {
-                                    const parent = (e.target as HTMLElement).closest('.space-y-1')
-                                    const inputs = parent?.querySelectorAll<HTMLInputElement>('input[type="text"]')
-                                    const target = inputs?.[Math.max(0, lIdx - 1)]
-                                    if (target) {
-                                      target.focus()
-                                      target.setSelectionRange(target.value.length, target.value.length)
-                                    }
-                                  }, 0)
-                                }
-                              }}
-                              className="flex-1 bg-transparent text-sm text-gray-200 outline-none placeholder-gray-600"
-                              placeholder="ここに書いてください"
-                            />
-                          </div>
-                        ))
-                      })()}
-                    </div>
-                    {/* リンク記法ヒント */}
-                    <div className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
-                      <span>＊</span>
-                      <span>リンクは <code className="bg-[#1a1a2e] px-1 py-0.5 rounded text-orange-400/70">[表示テキスト](URL)</code> の形式で埋め込めます</span>
+                    {/* 箇条書きエディタ（1セクション1テキストエリア・改行で項目分割） */}
+                    <textarea
+                      value={section.content || ''}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        handleUpdateSections(prev => {
+                          const newSections = [...prev]
+                          newSections[index] = { ...newSections[index], content: newValue }
+                          return newSections
+                        })
+                      }}
+                      rows={Math.max(3, (section.content || '').split('\n').length)}
+                      className="w-full bg-[#111118] border border-gray-700 rounded-lg px-3 py-3 text-sm text-gray-200 outline-none placeholder-gray-600 resize-y leading-relaxed"
+                      placeholder="1行が1項目になります。Enterで改行してください。"
+                    />
+                    {/* ヒント */}
+                    <div className="text-xs text-gray-500 mt-1.5 space-y-0.5">
+                      <div className="flex items-center gap-1">
+                        <span>＊</span>
+                        <span>1行 = 1項目（◎マーク） / 改行で項目を追加</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span>＊</span>
+                        <span>リンクは <code className="bg-[#1a1a2e] px-1 py-0.5 rounded text-orange-400/70">[表示テキスト](URL)</code> の形式で埋め込めます</span>
+                      </div>
                     </div>
 
                     {/* 画像ブロック一覧（編集モード） */}
@@ -623,6 +569,7 @@ export default function MemberDetailPage() {
                                       })
                                       try {
                                         const url = await uploadSectionImage(member.id, file, index)
+                                        trackEvent('image_upload', { member_id: member.id, image_type: 'section' })
                                         handleUpdateSections(prev => {
                                           const newSections = [...prev]
                                           const newBlocks = [...(newSections[index].blocks || [])]

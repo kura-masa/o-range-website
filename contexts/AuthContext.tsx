@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { trackEvent } from '@/lib/analytics'
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -45,12 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('isAuthenticated', 'true')
       localStorage.setItem('currentMemberId', memberId)
       localStorage.setItem('currentMemberName', memberName)
+      trackEvent('login_success', { member_name: memberName })
       return true
     }
+    trackEvent('login_failure', { member_name: memberName })
     return false
   }
 
   const logout = () => {
+    trackEvent('logout', { member_name: currentMemberName ?? undefined })
     setIsAuthenticated(false)
     setCurrentMemberId(null)
     setCurrentMemberName(null)
