@@ -11,7 +11,7 @@ import { Member } from '@/lib/data'
 import { getMembers, saveMembers } from '@/lib/firestore'
 
 export default function Home() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, currentMemberId } = useAuth()
   const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
   const { showToast } = useNotification()
   const [members, setMembers] = useState<Member[]>([])
@@ -102,7 +102,7 @@ export default function Home() {
               <div key={member.id} id={`member-${member.id}`}>
                 <MemberCard
                   member={member}
-                  isEditing={isEditMode}
+                  isEditing={isEditMode && currentMemberId === member.id}
                   onUpdate={handleUpdateMember}
                   onSave={handleSave}
                 />

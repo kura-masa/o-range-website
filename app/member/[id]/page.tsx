@@ -51,11 +51,14 @@ function renderTextWithLinks(text: string): React.ReactNode[] {
 export default function MemberDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, currentMemberId } = useAuth()
   const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
   const { showToast } = useNotification()
   const [member, setMember] = useState<Member | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const decodedId = params?.id ? decodeURIComponent(params.id) : ''
+  const canEdit = isEditMode && currentMemberId === decodedId
 
   useEffect(() => {
     if (params?.id) {
@@ -135,7 +138,7 @@ export default function MemberDetailPage() {
         >
           ← 戻る
         </button>
-        {isEditMode ? (
+        {canEdit ? (
           <div className="absolute inset-0">
             <ImageUploader
               currentImage={member.imageNo2}
@@ -175,7 +178,7 @@ export default function MemberDetailPage() {
       <div className="px-5 -mt-6 relative z-10">
         {/* 名前 */}
         <div className="mb-4 text-center">
-          {isEditMode ? (
+          {canEdit ? (
             <input
               type="text"
               value={member.name}
@@ -190,7 +193,7 @@ export default function MemberDetailPage() {
         </div>
 
         {/* TEL / E-Mail（名前と基本情報の間） */}
-        {isEditMode ? (
+        {canEdit ? (
           <div className="mb-4 space-y-2">
             {/* TEL 編集 */}
             <div className="flex items-center justify-center gap-2">
@@ -260,7 +263,7 @@ export default function MemberDetailPage() {
           {/* 生年月日 */}
           <div className="flex items-center justify-center gap-2">
             <span className="text-orange-primary">📅</span>
-            {isEditMode ? (
+            {canEdit ? (
               <input
                 type="text"
                 value={member.birthDate || ''}
@@ -276,7 +279,7 @@ export default function MemberDetailPage() {
           {/* 出身 */}
           <div className="flex items-center justify-center gap-2">
             <span className="text-orange-primary">📍</span>
-            {isEditMode ? (
+            {canEdit ? (
               <input
                 type="text"
                 value={member.hometown || ''}
@@ -292,7 +295,7 @@ export default function MemberDetailPage() {
           {/* 趣味 */}
           <div className="flex items-center justify-center gap-2">
             <span className="text-orange-primary">🎯</span>
-            {isEditMode ? (
+            {canEdit ? (
               <input
                 type="text"
                 value={member.hobbies || ''}
@@ -307,11 +310,11 @@ export default function MemberDetailPage() {
         </div>
 
         {/* プロフィールセクション（選択式） */}
-        {(member.sections && member.sections.length > 0) || isEditMode ? (
+        {(member.sections && member.sections.length > 0) || canEdit ? (
           <>
             {(member.sections || []).map((section, index) => (
               <div key={index} className="mb-8">
-                {isEditMode ? (
+                {canEdit ? (
                   <>
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <select
@@ -405,16 +408,25 @@ export default function MemberDetailPage() {
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                   e.preventDefault()
+                                  const input = e.target as HTMLInputElement
+                                  const pos = input.selectionStart ?? line.length
+                                  const before = line.slice(0, pos)
+                                  const after = line.slice(pos)
                                   const newLines = [...lines]
-                                  newLines.splice(lIdx + 1, 0, '')
+                                  newLines[lIdx] = before
+                                  newLines.splice(lIdx + 1, 0, after)
                                   const newSections = [...(member.sections || [])]
                                   newSections[index] = { ...newSections[index], content: newLines.join('\n') }
                                   handleUpdateSections(newSections)
-                                  // 次の行にフォーカス
+                                  // 次の行の先頭にフォーカス
                                   setTimeout(() => {
                                     const parent = (e.target as HTMLElement).closest('.space-y-1')
                                     const inputs = parent?.querySelectorAll<HTMLInputElement>('input[type="text"]')
-                                    inputs?.[lIdx + 1]?.focus()
+                                    const next = inputs?.[lIdx + 1]
+                                    if (next) {
+                                      next.focus()
+                                      next.setSelectionRange(0, 0)
+                                    }
                                   }, 0)
                                 } else if (e.key === 'Backspace' && line === '' && lines.length > 1) {
                                   e.preventDefault()
@@ -626,7 +638,7 @@ export default function MemberDetailPage() {
             ))}
 
             {/* セクション追加ボタン（編集モード時のみ） */}
-            {isEditMode && (
+            {canEdit && (
               <button
                 type="button"
                 onClick={() => {
@@ -646,7 +658,7 @@ export default function MemberDetailPage() {
         )}
       </div>
 
-      {isAuthenticated && isEditMode && (
+      {isAuthenticated && canEdit && (
         <SaveButtons
           onSave={handleSave}
           onSaveAndExit={handleSaveAndExit}
