@@ -13,6 +13,7 @@ import { Member, ProfileSection, ContentBlock, SECTION_CATEGORIES, CUSTOM_CATEGO
 import { getMember, saveMember } from '@/lib/firestore'
 import { uploadSectionImage, validateImageFile } from '@/lib/storage'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
+import BulletListEditor from '@/components/BulletListEditor'
 import { trackEvent } from '@/lib/analytics'
 
 const AUTO_SAVE_DEBOUNCE_MS = 1500
@@ -483,103 +484,15 @@ export default function MemberDetailPage() {
                       </button>
                     </div>
                     {/* 箇条書きエディタ（テキストエリア内に◎マーカーを表示） */}
-                    <textarea
-                      value={(section.content || '').split('\n').map(l => `◎ ${l}`).join('\n')}
-                      onKeyDown={(e) => {
-                        if (e.key !== 'Backspace') return
-                        const ta = e.currentTarget
-                        const start = ta.selectionStart ?? 0
-                        const end = ta.selectionEnd ?? 0
-                        if (start !== end) return // 選択範囲ありは通常処理
-                        const display = ta.value
-                        const displayLines = display.split('\n')
-                        // カーソルが今いる行と行内位置を求める
-                        let lineIdx = 0
-                        let offsetInLine = start
-                        for (let i = 0; i < displayLines.length; i++) {
-                          const lineLen = displayLines[i].length
-                          if (offsetInLine <= lineLen) {
-                            lineIdx = i
-                            break
-                          }
-                          offsetInLine -= lineLen + 1
-                          lineIdx = i + 1
-                        }
-                        // 非先頭行の「◎ 」部分（offset 0/1/2）でBackspace → 上の行末と連結し、◎は消す
-                        if (lineIdx > 0 && offsetInLine <= 2 && (displayLines[lineIdx] ?? '').startsWith('◎ ')) {
-                          e.preventDefault()
-                          const cleanLines = displayLines.map(l => l.startsWith('◎ ') ? l.slice(2) : l.startsWith('◎') ? l.slice(1) : l)
-                          const prevContent = cleanLines[lineIdx - 1] ?? ''
-                          const thisContent = cleanLines[lineIdx] ?? ''
-                          const merged = prevContent + thisContent
-                          const newLines = [...cleanLines]
-                          newLines.splice(lineIdx - 1, 2, merged)
-                          handleUpdateSections(prev => {
-                            const newSections = [...prev]
-                            newSections[index] = { ...newSections[index], content: newLines.join('\n') }
-                            return newSections
-                          })
-                          // 連結点（上の行末）にカーソルを置く
-                          let newCursorPos = 0
-                          for (let i = 0; i < lineIdx - 1; i++) newCursorPos += (newLines[i]?.length ?? 0) + 2 + 1
-                          newCursorPos += 2 + prevContent.length
-                          setTimeout(() => {
-                            try { ta.setSelectionRange(newCursorPos, newCursorPos) } catch {}
-                          }, 0)
-                        }
-                      }}
-                      onChange={(e) => {
-                        const target = e.target
-                        const newDisplay = e.target.value
-                        const cursorPos = e.target.selectionStart ?? 0
-                        const newDisplayLines = newDisplay.split('\n')
-                        // 各行の先頭から「◎ 」または「◎」を剥がしてクリーンな内容を得る
-                        const newLines = newDisplayLines.map(l => {
-                          if (l.startsWith('◎ ')) return l.slice(2)
-                          if (l.startsWith('◎')) return l.slice(1)
-                          return l
-                        })
-                        const cleanContent = newLines.join('\n')
-
-                        // カーソル位置を新しい表示値に合わせて補正
-                        // newDisplay中のカーソル位置から、(行index, 行内位置)を求める
-                        let cursorLineIdx = 0
-                        let cursorOffsetInLine = cursorPos
-                        for (let i = 0; i < newDisplayLines.length; i++) {
-                          const lineLen = newDisplayLines[i].length
-                          if (cursorOffsetInLine <= lineLen) {
-                            cursorLineIdx = i
-                            break
-                          }
-                          cursorOffsetInLine -= lineLen + 1
-                          cursorLineIdx = i + 1
-                        }
-                        const dispLine = newDisplayLines[cursorLineIdx] ?? ''
-                        const presentPrefixLen = dispLine.startsWith('◎ ') ? 2 : dispLine.startsWith('◎') ? 1 : 0
-                        const cursorInContent = Math.max(0, cursorOffsetInLine - presentPrefixLen)
-                        // 再描画後の表示値（必ず「◎ 」付き）でのカーソル位置を計算
-                        let newCursorPos = 0
-                        for (let i = 0; i < cursorLineIdx; i++) {
-                          newCursorPos += (newLines[i]?.length ?? 0) + 2 + 1
-                        }
-                        newCursorPos += 2 + cursorInContent
-
+                    <BulletListEditor
+                      value={section.content || ''}
+                      onChange={(newContent) => {
                         handleUpdateSections(prev => {
                           const newSections = [...prev]
-                          newSections[index] = { ...newSections[index], content: cleanContent }
+                          newSections[index] = { ...newSections[index], content: newContent }
                           return newSections
                         })
-
-                        // 再描画後にカーソル位置を復元
-                        setTimeout(() => {
-                          try {
-                            target.setSelectionRange(newCursorPos, newCursorPos)
-                          } catch {}
-                        }, 0)
                       }}
-                      rows={Math.max(3, (section.content || '').split('\n').length)}
-                      className="w-full bg-[#111118] border border-gray-700 rounded-lg px-3 py-3 text-sm text-gray-200 outline-none placeholder-gray-600 resize-y leading-relaxed"
-                      placeholder="◎ ここに書いてください"
                     />
                     {/* ヒント */}
                     <div className="text-xs text-gray-500 mt-1.5 space-y-0.5">
