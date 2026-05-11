@@ -485,6 +485,49 @@ export default function MemberDetailPage() {
                     {/* 箇条書きエディタ（テキストエリア内に◎マーカーを表示） */}
                     <textarea
                       value={(section.content || '').split('\n').map(l => `◎ ${l}`).join('\n')}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Backspace') return
+                        const ta = e.currentTarget
+                        const start = ta.selectionStart ?? 0
+                        const end = ta.selectionEnd ?? 0
+                        if (start !== end) return // 選択範囲ありは通常処理
+                        const display = ta.value
+                        const displayLines = display.split('\n')
+                        // カーソルが今いる行と行内位置を求める
+                        let lineIdx = 0
+                        let offsetInLine = start
+                        for (let i = 0; i < displayLines.length; i++) {
+                          const lineLen = displayLines[i].length
+                          if (offsetInLine <= lineLen) {
+                            lineIdx = i
+                            break
+                          }
+                          offsetInLine -= lineLen + 1
+                          lineIdx = i + 1
+                        }
+                        // 非先頭行の「◎ 」部分（offset 0/1/2）でBackspace → 上の行末と連結し、◎は消す
+                        if (lineIdx > 0 && offsetInLine <= 2 && (displayLines[lineIdx] ?? '').startsWith('◎ ')) {
+                          e.preventDefault()
+                          const cleanLines = displayLines.map(l => l.startsWith('◎ ') ? l.slice(2) : l.startsWith('◎') ? l.slice(1) : l)
+                          const prevContent = cleanLines[lineIdx - 1] ?? ''
+                          const thisContent = cleanLines[lineIdx] ?? ''
+                          const merged = prevContent + thisContent
+                          const newLines = [...cleanLines]
+                          newLines.splice(lineIdx - 1, 2, merged)
+                          handleUpdateSections(prev => {
+                            const newSections = [...prev]
+                            newSections[index] = { ...newSections[index], content: newLines.join('\n') }
+                            return newSections
+                          })
+                          // 連結点（上の行末）にカーソルを置く
+                          let newCursorPos = 0
+                          for (let i = 0; i < lineIdx - 1; i++) newCursorPos += (newLines[i]?.length ?? 0) + 2 + 1
+                          newCursorPos += 2 + prevContent.length
+                          setTimeout(() => {
+                            try { ta.setSelectionRange(newCursorPos, newCursorPos) } catch {}
+                          }, 0)
+                        }
+                      }}
                       onChange={(e) => {
                         const target = e.target
                         const newDisplay = e.target.value
