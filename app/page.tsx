@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
 import { useNotification } from '@/contexts/NotificationContext'
@@ -16,6 +16,11 @@ export default function Home() {
   const { showToast } = useNotification()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
+  const membersRef = useRef<Member[]>([])
+
+  useEffect(() => {
+    membersRef.current = members
+  }, [members])
 
   useEffect(() => {
     loadMembers()
@@ -38,8 +43,8 @@ export default function Home() {
 
   const handleSave = async () => {
     try {
-      // Firestoreに保存
-      await saveMembers(members)
+      // 最新の state を ref 経由で参照（クロージャの staleness 回避）
+      await saveMembers(membersRef.current)
       setHasUnsavedChanges(false)
       showToast('success', 'メンバー情報を保存しました')
     } catch (error) {
@@ -50,7 +55,7 @@ export default function Home() {
 
   const handleSaveAndExit = async () => {
     try {
-      await saveMembers(members)
+      await saveMembers(membersRef.current)
       setHasUnsavedChanges(false)
       showToast('success', 'メンバー情報を保存して編集モードを終了しました')
       disableEditMode()
