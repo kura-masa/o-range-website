@@ -5,7 +5,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { EditProvider } from '@/contexts/EditContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import HamburgerMenu from '@/components/HamburgerMenu'
-import { GoogleAnalytics } from '@next/third-parties/google'
+import GoogleAnalytics from '@/components/GoogleAnalytics'
 
 const inter = Inter({ subsets: ['latin'] })
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID
