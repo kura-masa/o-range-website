@@ -4,7 +4,7 @@
 // Render a static shell and let client fetch data from Firestore.
 export const dynamic = 'force-static'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEdit } from '@/contexts/EditContext'
@@ -12,8 +12,10 @@ import { useNotification } from '@/contexts/NotificationContext'
 import { Member, ProfileSection, ContentBlock, SECTION_CATEGORIES, CUSTOM_CATEGORY } from '@/lib/data'
 import { getMember, saveMember } from '@/lib/firestore'
 import { uploadSectionImage, validateImageFile } from '@/lib/storage'
-import SaveButtons from '@/components/SaveButtons'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
+
+const AUTO_SAVE_DEBOUNCE_MS = 1500
+const UNDO_HISTORY_LIMIT = 20
 
 // テキスト内の [表示テキスト](URL) をリンクに変換して描画
 function renderTextWithLinks(text: string): React.ReactNode[] {
@@ -52,10 +54,16 @@ export default function MemberDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const { isAuthenticated, currentMemberId } = useAuth()
-  const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
+  const { isEditMode, setHasUnsavedChanges } = useEdit()
   const { showToast } = useNotification()
   const [member, setMember] = useState<Member | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [history, setHistory] = useState<Member[]>([])
+
+  const lastSavedRef = useRef<Member | null>(null)
+  const memberRef = useRef<Member | null>(null)
+  const savedFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const decodedId = params?.id ? decodeURIComponent(params.id) : ''
   const canEdit = isEditMode && currentMemberId === decodedId
@@ -66,11 +74,17 @@ export default function MemberDetailPage() {
     }
   }, [params?.id])
 
+  // member の最新値を ref で保持（unmount時の保存に使用）
+  useEffect(() => {
+    memberRef.current = member
+  }, [member])
+
   const loadMember = async (id: string) => {
     setLoading(true)
     try {
       const data = await getMember(id)
       setMember(data)
+      lastSavedRef.current = data
       if (data) {
         console.log(`✅ Loaded member ${id} from Firebase`)
       }
@@ -82,32 +96,78 @@ export default function MemberDetailPage() {
     }
   }
 
-  const handleSave = async () => {
-    if (member) {
-      try {
-        await saveMember(member)
-        setHasUnsavedChanges(false)
-        showToast('success', 'プロフィールを保存しました')
-      } catch (error) {
-        console.error('Error saving:', error)
-        showToast('error', '保存に失敗しました')
+  const performSave = async (target: Member) => {
+    setSaveStatus('saving')
+    try {
+      await saveMember(target)
+      // 直前の保存状態を履歴に積む（Undo用）
+      if (lastSavedRef.current) {
+        setHistory(prev => {
+          const next = [...prev, lastSavedRef.current!]
+          return next.length > UNDO_HISTORY_LIMIT ? next.slice(next.length - UNDO_HISTORY_LIMIT) : next
+        })
       }
+      lastSavedRef.current = target
+      setHasUnsavedChanges(false)
+      setSaveStatus('saved')
+      if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current)
+      savedFlashTimerRef.current = setTimeout(() => {
+        setSaveStatus(s => (s === 'saved' ? 'idle' : s))
+      }, 2000)
+    } catch (error) {
+      console.error('Auto-save failed:', error)
+      setSaveStatus('error')
     }
   }
 
-  const handleSaveAndExit = async () => {
-    await handleSave()
-    disableEditMode()
+  // デバウンス自動保存
+  useEffect(() => {
+    if (!member || !lastSavedRef.current) return
+    if (JSON.stringify(member) === JSON.stringify(lastSavedRef.current)) return
+
+    setHasUnsavedChanges(true)
+    const t = setTimeout(() => {
+      performSave(member)
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member])
+
+  // アンマウント時、未保存があれば fire-and-forget で保存
+  useEffect(() => {
+    return () => {
+      const cur = memberRef.current
+      const last = lastSavedRef.current
+      if (cur && last && JSON.stringify(cur) !== JSON.stringify(last)) {
+        saveMember(cur).catch((e) => console.error('Unmount save failed:', e))
+      }
+      if (savedFlashTimerRef.current) clearTimeout(savedFlashTimerRef.current)
+    }
+  }, [])
+
+  const handleUndo = () => {
+    if (history.length === 0) return
+    const prev = history[history.length - 1]
+    setHistory(h => h.slice(0, -1))
+    setMember(prev)
+    // 状態を「直前の保存済み」に巻き戻すので、再保存を回避するため lastSaved も同期
+    lastSavedRef.current = prev
+    // ただし即座に Firestore へ反映するため明示的に保存
+    performSave(prev)
+    showToast('success', '直前の状態に戻しました')
+  }
+
+  const handleRetry = () => {
+    if (!member) return
+    performSave(member)
   }
 
   const handleUpdate = (field: keyof Member, value: string | number | boolean) => {
     setMember(prev => prev ? { ...prev, [field]: value } : prev)
-    setHasUnsavedChanges(true)
   }
 
   const handleUpdateSections = (newSections: ProfileSection[]) => {
     setMember(prev => prev ? { ...prev, sections: newSections } : prev)
-    setHasUnsavedChanges(true)
   }
 
   if (loading) {
@@ -659,10 +719,42 @@ export default function MemberDetailPage() {
       </div>
 
       {isAuthenticated && canEdit && (
-        <SaveButtons
-          onSave={handleSave}
-          onSaveAndExit={handleSaveAndExit}
-        />
+        <div className="fixed bottom-4 right-4 z-40 flex items-center gap-2">
+          {/* 保存状態インジケータ */}
+          <div
+            className={`px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+              saveStatus === 'error'
+                ? 'bg-red-600 text-white'
+                : saveStatus === 'saving'
+                ? 'bg-gray-700 text-gray-100'
+                : saveStatus === 'saved'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-800/80 text-gray-300'
+            }`}
+          >
+            {saveStatus === 'saving' && <><span className="animate-pulse">●</span> 保存中...</>}
+            {saveStatus === 'saved' && <>✓ 保存しました</>}
+            {saveStatus === 'error' && <>⚠ 保存に失敗</>}
+            {saveStatus === 'idle' && <>自動保存ON</>}
+          </div>
+          {saveStatus === 'error' && (
+            <button
+              onClick={handleRetry}
+              className="px-3 py-2 rounded-lg shadow-lg text-xs font-semibold bg-orange-primary text-white hover:bg-orange-dark transition-colors"
+            >
+              再試行
+            </button>
+          )}
+          {history.length > 0 && (
+            <button
+              onClick={handleUndo}
+              title={`直前の状態に戻す（${history.length}件の履歴）`}
+              className="px-3 py-2 rounded-lg shadow-lg text-xs font-semibold bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+            >
+              ↶ 元に戻す
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
