@@ -54,7 +54,7 @@ export default function MemberDetailPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const { isAuthenticated, currentMemberId } = useAuth()
-  const { isEditMode, setHasUnsavedChanges } = useEdit()
+  const { isEditMode, disableEditMode, setHasUnsavedChanges } = useEdit()
   const { showToast } = useNotification()
   const [member, setMember] = useState<Member | null>(null)
   const [loading, setLoading] = useState(true)
@@ -172,6 +172,21 @@ export default function MemberDetailPage() {
     performSave(member)
   }
 
+  const handleExitEdit = () => {
+    // 未保存があれば即時保存してから編集モード解除
+    const cur = memberRef.current
+    const last = lastSavedRef.current
+    if (cur && last && JSON.stringify(cur) !== JSON.stringify(last)) {
+      performSave(cur)
+    }
+    disableEditMode()
+  }
+
+  const handleBack = () => {
+    if (canEdit) handleExitEdit()
+    router.back()
+  }
+
   const handleUpdate = (field: keyof Member, value: string | number | boolean) => {
     setMember(prev => prev ? { ...prev, [field]: value } : prev)
   }
@@ -202,7 +217,7 @@ export default function MemberDetailPage() {
       <div className="relative w-full aspect-video">
         {/* 戻るボタン */}
         <button
-          onClick={() => router.back()}
+          onClick={handleBack}
           className="absolute top-4 left-4 z-20 flex items-center gap-1 text-orange-primary text-sm font-semibold drop-shadow-lg hover:opacity-80 transition-opacity"
           style={{ textShadow: '0 0 8px rgba(0,0,0,0.8)' }}
         >
@@ -823,6 +838,13 @@ export default function MemberDetailPage() {
               </button>
             )
           })()}
+          <button
+            onClick={handleExitEdit}
+            title="編集を終了する"
+            className="px-4 py-2 rounded-lg shadow-lg text-sm font-bold bg-orange-primary text-white hover:bg-orange-dark transition-colors"
+          >
+            ✓ 完了
+          </button>
         </div>
       )}
     </div>
