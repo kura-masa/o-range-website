@@ -485,17 +485,21 @@ export default function MemberDetailPage() {
                                 })
                               }}
                               onKeyDown={(e) => {
+                                // IME変換確定のEnterは無視（日本語入力の確定で誤発火しないように）
+                                if (e.nativeEvent.isComposing || e.keyCode === 229) return
                                 if (e.key === 'Enter') {
                                   e.preventDefault()
                                   const input = e.target as HTMLInputElement
-                                  const pos = input.selectionStart ?? line.length
-                                  const before = line.slice(0, pos)
-                                  const after = line.slice(pos)
-                                  const newLines = [...lines]
-                                  newLines[lIdx] = before
-                                  newLines.splice(lIdx + 1, 0, after)
+                                  const currentValue = input.value
+                                  const pos = input.selectionStart ?? currentValue.length
+                                  const before = currentValue.slice(0, pos)
+                                  const after = currentValue.slice(pos)
                                   handleUpdateSections(prev => {
                                     const newSections = [...prev]
+                                    const currentLines = (newSections[index]?.content || '').split('\n')
+                                    const newLines = [...currentLines]
+                                    newLines[lIdx] = before
+                                    newLines.splice(lIdx + 1, 0, after)
                                     newSections[index] = { ...newSections[index], content: newLines.join('\n') }
                                     return newSections
                                   })
@@ -509,12 +513,13 @@ export default function MemberDetailPage() {
                                       next.setSelectionRange(0, 0)
                                     }
                                   }, 0)
-                                } else if (e.key === 'Backspace' && line === '' && lines.length > 1) {
+                                } else if (e.key === 'Backspace' && (e.target as HTMLInputElement).value === '' && lines.length > 1) {
                                   e.preventDefault()
-                                  const newLines = [...lines]
-                                  newLines.splice(lIdx, 1)
                                   handleUpdateSections(prev => {
                                     const newSections = [...prev]
+                                    const currentLines = (newSections[index]?.content || '').split('\n')
+                                    const newLines = [...currentLines]
+                                    newLines.splice(lIdx, 1)
                                     newSections[index] = { ...newSections[index], content: newLines.join('\n') }
                                     return newSections
                                   })
