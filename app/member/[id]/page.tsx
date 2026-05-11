@@ -13,6 +13,7 @@ import { Member, ProfileSection, ContentBlock, SECTION_CATEGORIES, CUSTOM_CATEGO
 import { getMember, saveMember } from '@/lib/firestore'
 import { uploadSectionImage, validateImageFile } from '@/lib/storage'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
+import BulletListEditor from '@/components/BulletListEditor'
 import { trackEvent } from '@/lib/analytics'
 
 const AUTO_SAVE_DEBOUNCE_MS = 1500
@@ -482,26 +483,22 @@ export default function MemberDetailPage() {
                         ✕ 削除
                       </button>
                     </div>
-                    {/* 箇条書きエディタ（1セクション1テキストエリア・改行で項目分割） */}
-                    <textarea
+                    {/* 箇条書きエディタ（テキストエリア内に◎マーカーを表示） */}
+                    <BulletListEditor
                       value={section.content || ''}
-                      onChange={(e) => {
-                        const newValue = e.target.value
+                      onChange={(newContent) => {
                         handleUpdateSections(prev => {
                           const newSections = [...prev]
-                          newSections[index] = { ...newSections[index], content: newValue }
+                          newSections[index] = { ...newSections[index], content: newContent }
                           return newSections
                         })
                       }}
-                      rows={Math.max(3, (section.content || '').split('\n').length)}
-                      className="w-full bg-[#111118] border border-gray-700 rounded-lg px-3 py-3 text-sm text-gray-200 outline-none placeholder-gray-600 resize-y leading-relaxed"
-                      placeholder="1行が1項目になります。Enterで改行してください。"
                     />
                     {/* ヒント */}
                     <div className="text-xs text-gray-500 mt-1.5 space-y-0.5">
                       <div className="flex items-center gap-1">
                         <span>＊</span>
-                        <span>1行 = 1項目（◎マーク） / 改行で項目を追加</span>
+                        <span>各行の◎マーカーは自動表示されます。改行で項目を追加</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <span>＊</span>
