@@ -60,6 +60,7 @@ export default function MemberDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [history, setHistory] = useState<Member[]>([])
+  const [uploadingBlocks, setUploadingBlocks] = useState<Set<string>>(new Set())
 
   const lastSavedRef = useRef<Member | null>(null)
   const memberRef = useRef<Member | null>(null)
@@ -570,40 +571,62 @@ export default function MemberDetailPage() {
                             alt={block.caption || '画像'}
                             className="w-full max-h-48 object-contain rounded mb-2 bg-black/30"
                           />
-                        ) : (
-                          <div className="w-full h-32 bg-[#0a0a0f] rounded flex items-center justify-center mb-2">
-                            <label className="cursor-pointer px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition-colors">
-                              画像をアップロード
-                              <input
-                                type="file"
-                                accept="image/jpeg,image/jpg,image/png,image/webp"
-                                className="hidden"
-                                onChange={async (e) => {
-                                  const file = e.target.files?.[0]
-                                  if (!file) return
-                                  const validation = validateImageFile(file)
-                                  if (!validation.valid) {
-                                    showToast('error', validation.error || '不正なファイルです')
-                                    return
-                                  }
-                                  try {
-                                    const url = await uploadSectionImage(member.id, file, index)
-                                    handleUpdateSections(prev => {
-                                      const newSections = [...prev]
-                                      const newBlocks = [...(newSections[index].blocks || [])]
-                                      newBlocks[bIdx] = { ...newBlocks[bIdx], value: url }
-                                      newSections[index] = { ...newSections[index], blocks: newBlocks }
-                                      return newSections
-                                    })
-                                    showToast('success', '画像をアップロードしました')
-                                  } catch {
-                                    showToast('error', '画像のアップロードに失敗しました')
-                                  }
-                                }}
-                              />
-                            </label>
-                          </div>
-                        )}
+                        ) : (() => {
+                          const blockKey = `${index}-${bIdx}`
+                          const isUploading = uploadingBlocks.has(blockKey)
+                          return (
+                            <div className="relative w-full h-32 bg-[#0a0a0f] rounded flex items-center justify-center mb-2">
+                              {isUploading ? (
+                                <div className="flex flex-col items-center gap-2 text-white">
+                                  <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                  <p className="text-xs font-semibold">アップロード中...</p>
+                                </div>
+                              ) : (
+                                <label className="cursor-pointer px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 transition-colors">
+                                  画像をアップロード
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0]
+                                      if (!file) return
+                                      const validation = validateImageFile(file)
+                                      if (!validation.valid) {
+                                        showToast('error', validation.error || '不正なファイルです')
+                                        return
+                                      }
+                                      setUploadingBlocks(prev => {
+                                        const next = new Set(prev)
+                                        next.add(blockKey)
+                                        return next
+                                      })
+                                      try {
+                                        const url = await uploadSectionImage(member.id, file, index)
+                                        handleUpdateSections(prev => {
+                                          const newSections = [...prev]
+                                          const newBlocks = [...(newSections[index].blocks || [])]
+                                          newBlocks[bIdx] = { ...newBlocks[bIdx], value: url }
+                                          newSections[index] = { ...newSections[index], blocks: newBlocks }
+                                          return newSections
+                                        })
+                                        showToast('success', '画像をアップロードしました')
+                                      } catch {
+                                        showToast('error', '画像のアップロードに失敗しました')
+                                      } finally {
+                                        setUploadingBlocks(prev => {
+                                          const next = new Set(prev)
+                                          next.delete(blockKey)
+                                          return next
+                                        })
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          )
+                        })()}
                         {/* 説明文入力 */}
                         <input
                           type="text"

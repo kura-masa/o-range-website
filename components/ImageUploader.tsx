@@ -548,6 +548,18 @@ export default function ImageUploader({
             {error}
           </div>
         )}
+
+        {uploading && (
+          <div
+            className="fixed inset-0 flex items-center justify-center bg-black/70"
+            style={{ zIndex: 20 }}
+          >
+            <div className="flex flex-col items-center gap-3 px-6 py-5 rounded-lg bg-gray-900/90 text-white shadow-xl">
+              <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm font-semibold">アップロード中...</p>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
