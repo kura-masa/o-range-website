@@ -96,14 +96,16 @@ export default function MemberDetailPage() {
     }
   }
 
-  const performSave = async (target: Member) => {
+  const performSave = async (target: Member, options?: { recordHistory?: boolean }) => {
+    const recordHistory = options?.recordHistory ?? true
+    const priorSaved = lastSavedRef.current
+    // 履歴記録対象が現在の target と同じなら積まない（Undoの巻き戻し時に同状態を再プッシュしないため）
     setSaveStatus('saving')
     try {
       await saveMember(target)
-      // 直前の保存状態を履歴に積む（Undo用）
-      if (lastSavedRef.current) {
+      if (recordHistory && priorSaved && JSON.stringify(priorSaved) !== JSON.stringify(target)) {
         setHistory(prev => {
-          const next = [...prev, lastSavedRef.current!]
+          const next = [...prev, priorSaved]
           return next.length > UNDO_HISTORY_LIMIT ? next.slice(next.length - UNDO_HISTORY_LIMIT) : next
         })
       }
@@ -146,15 +148,22 @@ export default function MemberDetailPage() {
   }, [])
 
   const handleUndo = () => {
+    if (!member) return
+    // 未保存の変更があればまず lastSaved に戻す（履歴消費なし）
+    const last = lastSavedRef.current
+    if (last && JSON.stringify(member) !== JSON.stringify(last)) {
+      setMember(last)
+      showToast('success', '未保存の変更を取り消しました')
+      return
+    }
     if (history.length === 0) return
     const prev = history[history.length - 1]
     setHistory(h => h.slice(0, -1))
     setMember(prev)
-    // 状態を「直前の保存済み」に巻き戻すので、再保存を回避するため lastSaved も同期
+    // 再保存時に同状態を履歴へ積まないよう lastSaved も同期
     lastSavedRef.current = prev
-    // ただし即座に Firestore へ反映するため明示的に保存
-    performSave(prev)
-    showToast('success', '直前の状態に戻しました')
+    performSave(prev, { recordHistory: false })
+    showToast('success', '直前の保存状態に戻しました')
   }
 
   const handleRetry = () => {
@@ -769,15 +778,23 @@ export default function MemberDetailPage() {
               再試行
             </button>
           )}
-          {history.length > 0 && (
-            <button
-              onClick={handleUndo}
-              title={`直前の状態に戻す（${history.length}件の履歴）`}
-              className="px-3 py-2 rounded-lg shadow-lg text-xs font-semibold bg-gray-700 text-white hover:bg-gray-600 transition-colors"
-            >
-              ↶ 元に戻す
-            </button>
-          )}
+          {(() => {
+            const hasUnsaved = member && lastSavedRef.current && JSON.stringify(member) !== JSON.stringify(lastSavedRef.current)
+            const visible = hasUnsaved || history.length > 0
+            if (!visible) return null
+            const tooltip = hasUnsaved
+              ? '未保存の変更を取り消す'
+              : `直前の保存状態に戻す（${history.length}件の履歴）`
+            return (
+              <button
+                onClick={handleUndo}
+                title={tooltip}
+                className="px-3 py-2 rounded-lg shadow-lg text-xs font-semibold bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+              >
+                ↶ 元に戻す
+              </button>
+            )
+          })()}
         </div>
       )}
     </div>
