@@ -5,8 +5,10 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { EditProvider } from '@/contexts/EditContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 import HamburgerMenu from '@/components/HamburgerMenu'
+import { GoogleAnalytics } from '@next/third-parties/google'
 
 const inter = Inter({ subsets: ['latin'] })
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID
 
 export const metadata: Metadata = {
   title: 'O-range - メンバー'
@@ -30,6 +32,7 @@ export default function RootLayout({
             </EditProvider>
           </NotificationProvider>
         </AuthProvider>
+        {GA_ID && <GoogleAnalytics gaId={GA_ID} />}
       </body>
     </html>
   )

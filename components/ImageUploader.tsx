@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { uploadMemberImage, validateImageFile } from '@/lib/storage'
+import { trackEvent } from '@/lib/analytics'
 
 interface ImageUploaderProps {
   currentImage?: string
@@ -363,6 +364,7 @@ export default function ImageUploader({
       try {
         const url = await uploadMemberImage(memberId, pendingFile, imageType)
         onUploadSuccess(url)
+        trackEvent('image_upload', { member_id: memberId, image_type: imageType })
         setPreview(url)
         setPendingFile(null)
       } catch (err) {

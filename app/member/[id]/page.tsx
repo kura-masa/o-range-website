@@ -13,6 +13,7 @@ import { Member, ProfileSection, ContentBlock, SECTION_CATEGORIES, CUSTOM_CATEGO
 import { getMember, saveMember } from '@/lib/firestore'
 import { uploadSectionImage, validateImageFile } from '@/lib/storage'
 import ImageUploader, { buildImageStyle } from '@/components/ImageUploader'
+import { trackEvent } from '@/lib/analytics'
 
 const AUTO_SAVE_DEBOUNCE_MS = 1500
 const UNDO_HISTORY_LIMIT = 20
@@ -88,6 +89,7 @@ export default function MemberDetailPage() {
       lastSavedRef.current = data
       if (data) {
         console.log(`✅ Loaded member ${id} from Firebase`)
+        trackEvent('member_view', { member_id: data.id, member_name: data.name })
       }
     } catch (error) {
       console.error('Error loading member:', error)
@@ -623,6 +625,7 @@ export default function MemberDetailPage() {
                                       })
                                       try {
                                         const url = await uploadSectionImage(member.id, file, index)
+                                        trackEvent('image_upload', { member_id: member.id, image_type: 'section' })
                                         handleUpdateSections(prev => {
                                           const newSections = [...prev]
                                           const newBlocks = [...(newSections[index].blocks || [])]

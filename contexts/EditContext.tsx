@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState } from 'react'
+import { trackEvent } from '@/lib/analytics'
 
 interface EditContextType {
   isEditMode: boolean
@@ -18,11 +19,13 @@ export function EditProvider({ children }: { children: React.ReactNode }) {
 
   const enableEditMode = () => {
     setIsEditMode(true)
+    trackEvent('edit_started')
   }
 
   const disableEditMode = () => {
     setIsEditMode(false)
     setHasUnsavedChanges(false)
+    trackEvent('edit_finished')
   }
 
   return (

@@ -62,7 +62,7 @@ export default function LoginModal({ onClose, onSuccess, redirectTo, onMemberAut
     setError('')
 
     if (!id.trim()) {
-      setError('IDを入力してください')
+      setError('パスワードを入力してください')
       return
     }
 
@@ -121,7 +121,7 @@ export default function LoginModal({ onClose, onSuccess, redirectTo, onMemberAut
       }
       onSuccess()
     } else {
-      setError('IDが正しくありません')
+      setError('パスワードが正しくありません')
     }
   }
 
